@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TravelGenie | AI Travel Itinerary Planner</title>
+    <meta
+      name="description"
+      content="TravelGenie creates personalized travel itineraries with schedules, attractions, food ideas, transportation tips, and budget breakdowns."
+    />
+    <link rel="preconnect" href="https://images.unsplash.com" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#home" aria-label="TravelGenie home">
+        <span class="brand-mark">TG</span>
+        <span>TravelGenie</span>
+      </a>
+
+      <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <nav class="site-nav auth-required" aria-label="Main navigation">
+        <a href="#planner">Create Trip</a>
+        <a href="#saved">Saved Trips</a>
+        <a href="#features">Features</a>
+        <a href="#admin">Admin</a>
+        <button class="nav-logout" type="button" id="nav-logout-button">Log out</button>
+      </nav>
+
+      <div class="header-actions">
+        <button class="ghost-button" type="button" data-auth-open="login">Log in</button>
+        <button class="primary-button small" type="button" data-auth-open="register">Register</button>
+        <button class="ghost-button user-action auth-required" type="button" id="logout-button">Log out</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" id="home">
+        <div class="hero-media" role="img" aria-label="Travelers overlooking Tokyo at sunset"></div>
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+          <p class="eyebrow">AI itinerary planning in seconds</p>
+          <h1>TravelGenie</h1>
+          <p class="hero-copy">
+            Build a day-by-day travel plan with attractions, food, transport, and budget allocation
+            for your destination.
+          </p>
+          <form class="hero-search auth-required" data-jump-planner>
+            <label class="sr-only" for="hero-destination">Search a destination</label>
+            <input id="hero-destination" type="search" placeholder="Try Tokyo, Paris, Cairo, Rio..." autocomplete="off" />
+            <button class="primary-button" type="submit">Plan Trip</button>
+          </form>
+          <div class="locked-hero guest-only">
+            <button class="primary-button" type="button" data-auth-open="login">Log in to start planning</button>
+            <button class="secondary-button" type="button" data-auth-open="register">Create account</button>
+          </div>
+          <div class="hero-stats auth-required" aria-label="TravelGenie highlights">
+            <span><strong>15</strong> currencies</span>
+            <span><strong>5 sec</strong> itinerary target</span>
+            <span><strong>24/7</strong> trip access</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="scenery-section guest-only" aria-labelledby="scenery-title">
+        <div class="section-heading">
+          <p class="eyebrow">Explore The World</p>
+          <h2 id="scenery-title">Famous places waiting for your next trip</h2>
+          <p>Log in or register to unlock itinerary planning, saved trips, and your travel history.</p>
+        </div>
+        <div class="scenery-grid">
+          <article>
+            <img src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=900&q=80" alt="Eiffel Tower in Paris" />
+            <span>Paris, France</span>
+          </article>
+          <article>
+            <img src="https://images.unsplash.com/photo-1526481280693-3bfa7568e0f3?auto=format&fit=crop&w=900&q=80" alt="Mount Fuji and Chureito Pagoda in Japan" />
+            <span>Mount Fuji, Japan</span>
+          </article>
+          <article>
+            <img src="https://images.unsplash.com/photo-1533929736458-ca588d08c8be?auto=format&fit=crop&w=900&q=80" alt="Tower Bridge in London" />
+            <span>London, United Kingdom</span>
+          </article>
+          <article>
+            <img src="https://images.unsplash.com/photo-1526392060635-9d6019884377?auto=format&fit=crop&w=900&q=80" alt="Machu Picchu in Peru" />
+            <span>Machu Picchu, Peru</span>
+          </article>
+          <article>
+            <img src="https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=900&q=80" alt="Dubai skyline" />
+            <span>Dubai, UAE</span>
+          </article>
+          <article>
+            <img src="https://images.unsplash.com/photo-1516306580123-e6e52b1b7b5f?auto=format&fit=crop&w=900&q=80" alt="Christ the Redeemer in Rio de Janeiro" />
+            <span>Rio de Janeiro, Brazil</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="planner-shell auth-required" id="planner" aria-labelledby="planner-title">
+        <div class="section-heading">
+          <p class="eyebrow">Trip Generator</p>
+          <h2 id="planner-title">Create your itinerary</h2>
+          <p>Choose your destination, budget, travel style, and places you already care about.</p>
+        </div>
+
+        <div class="planner-layout">
+          <form class="planner-form" id="trip-form">
+            <div class="form-grid">
+              <div class="field with-suggestions">
+                <label for="destination">Destination</label>
+                <input id="destination" name="destination" type="text" placeholder="Tokyo" autocomplete="off" required />
+                <div class="suggestion-list" id="destination-suggestions" role="listbox"></div>
+                <p class="field-message" id="destination-message" aria-live="polite"></p>
+              </div>
+
+              <div class="field">
+                <label for="budget">Total Budget</label>
+                <input id="budget" name="budget" type="number" min="100" step="50" value="5000" required />
+              </div>
+
+              <div class="field">
+                <label for="currency">Currency</label>
+                <select id="currency" name="currency"></select>
+              </div>
+
+              <div class="field">
+                <label for="travelers">Travelers</label>
+                <input id="travelers" name="travelers" type="number" min="1" max="20" value="2" required />
+              </div>
+
+              <div class="field">
+                <label for="days">Trip Duration</label>
+                <input id="days" name="days" type="number" min="1" max="14" value="7" required />
+              </div>
+
+              <div class="field">
+                <label for="trip-name">Trip Name</label>
+                <input id="trip-name" name="tripName" type="text" placeholder="Japan Summer Trip 2027" />
+              </div>
+            </div>
+
+            <fieldset class="choice-group">
+              <legend>Interests</legend>
+              <label><input type="checkbox" name="interests" value="Food" checked /> Food</label>
+              <label><input type="checkbox" name="interests" value="Nature" checked /> Nature</label>
+              <label><input type="checkbox" name="interests" value="Shopping" /> Shopping</label>
+              <label><input type="checkbox" name="interests" value="Culture" checked /> Culture</label>
+              <label><input type="checkbox" name="interests" value="Family" /> Family</label>
+              <label><input type="checkbox" name="interests" value="Nightlife" /> Nightlife</label>
+            </fieldset>
+
+            <fieldset class="choice-group attractions">
+              <legend>Preferred Places</legend>
+              <div id="attraction-options"></div>
+              <button class="text-button" id="recommend-button" type="button">Use AI recommendations</button>
+            </fieldset>
+
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Generate Itinerary</button>
+              <button class="secondary-button" id="reset-button" type="reset">Reset</button>
+            </div>
+          </form>
+
+          <aside class="dashboard-panel" aria-labelledby="dashboard-title">
+            <h3 id="dashboard-title">Dashboard</h3>
+            <div class="metric-grid">
+              <article>
+                <span>Create New Trip</span>
+                <strong id="new-trip-count">1</strong>
+              </article>
+              <article>
+                <span>Saved Trips</span>
+                <strong id="saved-count">0</strong>
+              </article>
+              <article>
+                <span>Recent Trips</span>
+                <strong id="recent-count">0</strong>
+              </article>
+            </div>
+            <div class="tip-box">
+              <span>Budget Guide</span>
+              <p id="budget-tip">Enter a destination to see a practical allocation for your trip.</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="result-section auth-required" id="result" aria-live="polite">
+        <div class="empty-result">
+          <h2>Your itinerary will appear here</h2>
+          <p>Generate a trip to see daily schedules, costs, recommended transport, and food ideas.</p>
+        </div>
+      </section>
+
+      <section class="saved-section auth-required" id="saved" aria-labelledby="saved-title">
+        <div class="section-heading">
+          <p class="eyebrow">Itinerary History</p>
+          <h2 id="saved-title">Saved and recent trips</h2>
+          <p>Save, rename, duplicate, revisit, or delete plans from this browser.</p>
+        </div>
+        <div class="saved-toolbar">
+          <button class="secondary-button" id="show-saved" type="button">Saved</button>
+          <button class="ghost-button" id="show-recent" type="button">Recent</button>
+        </div>
+        <div class="trip-list" id="trip-list"></div>
+      </section>
+
+      <section class="features-section auth-required" id="features" aria-labelledby="features-title">
+        <div class="section-heading">
+          <p class="eyebrow">Platform Features</p>
+          <h2 id="features-title">Everything from the PRD, shaped into a website</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <img
+              src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80"
+              alt="Historic street with travelers walking"
+            />
+            <h3>Smart Suggestions</h3>
+            <p>Destination and attraction suggestions appear as users type, with graceful unavailable-state messaging.</p>
+          </article>
+          <article>
+            <img
+              src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=900&q=80"
+              alt="Beach destination with blue water"
+            />
+            <h3>Budget Breakdown</h3>
+            <p>Accommodation, food, transport, attractions, and emergency funds are allocated in the selected currency.</p>
+          </article>
+          <article>
+            <img
+              src="https://images.unsplash.com/photo-1526772662000-3f88f10405ff?auto=format&fit=crop&w=900&q=80"
+              alt="Traveler checking a map"
+            />
+            <h3>Save and Edit</h3>
+            <p>Generated plans can be saved, renamed, duplicated, edited, deleted, and exported as a print-ready PDF.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="admin-section auth-required" id="admin" aria-labelledby="admin-title">
+        <div>
+          <p class="eyebrow">Admin Preview</p>
+          <h2 id="admin-title">Manage travel data</h2>
+          <p>
+            A lightweight admin view shows the future management surfaces for users, destinations,
+            attractions, currencies, and analytics.
+          </p>
+        </div>
+        <div class="admin-grid">
+          <article><strong id="admin-users">1,248</strong><span>Users</span></article>
+          <article><strong id="admin-destinations">8</strong><span>Destinations</span></article>
+          <article><strong id="admin-attractions">54</strong><span>Attractions</span></article>
+          <article><strong>15</strong><span>Currencies</span></article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <a class="brand" href="#home">
+          <span class="brand-mark">TG</span>
+          <span>TravelGenie</span>
+        </a>
+        <p>AI-powered itinerary planning for fast, practical, personalized trips.</p>
+      </div>
+      <div class="footer-links">
+        <a class="auth-required" href="#planner">Generator</a>
+        <a class="auth-required" href="#saved">History</a>
+        <a class="auth-required" href="#features">Features</a>
+        <a class="auth-required" href="#admin">Admin</a>
+      </div>
+    </footer>
+
+    <dialog class="auth-dialog" id="auth-dialog">
+      <form method="dialog" class="auth-card">
+        <button class="close-button" value="close" aria-label="Close login dialog">×</button>
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" data-auth-tab="login">Login</button>
+          <button type="button" class="auth-tab" data-auth-tab="register">Register</button>
+        </div>
+
+        <div class="auth-pane active" id="login-pane">
+          <h2>Welcome back</h2>
+          <button class="google-button" type="button" data-google-auth="login">
+            <span>G</span>
+            Continue with Google
+          </button>
+          <div class="auth-divider">or use email</div>
+          <label>Email <input type="email" placeholder="you@example.com" /></label>
+          <label>Password <input type="password" placeholder="Minimum 8 characters" /></label>
+          <label class="inline-check"><input type="checkbox" /> Remember me</label>
+          <button class="primary-button" id="login-demo" type="button">Log in</button>
+          <button class="text-button" type="button">Forgot password?</button>
+        </div>
+
+        <div class="auth-pane" id="register-pane">
+          <h2>Create an account</h2>
+          <button class="google-button" type="button" data-google-auth="register">
+            <span>G</span>
+            Sign up with Google
+          </button>
+          <div class="auth-divider">or create with email</div>
+          <label>Full Name <input type="text" placeholder="Your name" /></label>
+          <label>Email <input type="email" placeholder="you@example.com" /></label>
+          <label>Password <input type="password" placeholder="Minimum 8 characters" /></label>
+          <label>Confirm Password <input type="password" placeholder="Repeat password" /></label>
+          <button class="primary-button" id="register-demo" type="button">Register</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
