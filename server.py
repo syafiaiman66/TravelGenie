@@ -38,19 +38,42 @@ def load_env_file():
 
 
 load_env_file()
-DATA_DIR = Path(os.environ.get("DATA_DIR", str(ROOT))).resolve()
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = DATA_DIR / "travelgenie.sqlite3"
+DATABASE_URL = os.environ.get("DATABASE_URL")
+USE_POSTGRES = bool(DATABASE_URL)
+if USE_POSTGRES:
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError as exc:
+        raise RuntimeError("DATABASE_URL is set, but psycopg is not installed.") from exc
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    SQL_PARAM = "%s"
+else:
+    DATA_DIR = Path(os.environ.get("DATA_DIR", str(ROOT))).resolve()
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    DB_PATH = DATA_DIR / "travelgenie.sqlite3"
+    SQL_PARAM = "?"
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8000"))
 
 
+def connect_db():
+    if USE_POSTGRES:
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
+    user_id_column = "SERIAL PRIMARY KEY" if USE_POSTGRES else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    with connect_db() as conn:
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {user_id_column},
                 google_user_id TEXT UNIQUE,
                 full_name TEXT NOT NULL,
                 email TEXT NOT NULL UNIQUE,
@@ -153,7 +176,16 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def get_redirect_uri(self):
-        return os.environ.get("GOOGLE_REDIRECT_URI", f"http://127.0.0.1:{PORT}/auth/google/callback")
+        configured_uri = os.environ.get("GOOGLE_REDIRECT_URI")
+        if configured_uri:
+            return configured_uri
+
+        host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host")
+        if host:
+            proto = self.headers.get("X-Forwarded-Proto", "http")
+            return f"{proto}://{host}/auth/google/callback"
+
+        return f"http://127.0.0.1:{PORT}/auth/google/callback"
 
     def get_session_user(self):
         token = self.read_cookies().get("tg_session")
@@ -161,14 +193,13 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
             return None
 
         hashed = token_hash(token)
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
+        with connect_db() as conn:
             row = conn.execute(
-                """
+                f"""
                 SELECT users.id, users.google_user_id, users.full_name, users.email, users.profile_picture
                 FROM sessions
                 JOIN users ON users.id = sessions.user_id
-                WHERE sessions.token_hash = ? AND sessions.expires_at > ?
+                WHERE sessions.token_hash = {SQL_PARAM} AND sessions.expires_at > {SQL_PARAM}
                 """,
                 (hashed, now()),
             ).fetchone()
@@ -278,18 +309,17 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
 
     def upsert_user(self, userinfo):
         timestamp = now()
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
+        with connect_db() as conn:
             existing = conn.execute(
-                "SELECT id FROM users WHERE email = ? OR google_user_id = ?",
+                f"SELECT id FROM users WHERE email = {SQL_PARAM} OR google_user_id = {SQL_PARAM}",
                 (userinfo["email"], userinfo["sub"]),
             ).fetchone()
             if existing:
                 conn.execute(
-                    """
+                    f"""
                     UPDATE users
-                    SET google_user_id = ?, full_name = ?, email = ?, profile_picture = ?, updated_at = ?
-                    WHERE id = ?
+                    SET google_user_id = {SQL_PARAM}, full_name = {SQL_PARAM}, email = {SQL_PARAM}, profile_picture = {SQL_PARAM}, updated_at = {SQL_PARAM}
+                    WHERE id = {SQL_PARAM}
                     """,
                     (
                         userinfo["sub"],
@@ -301,6 +331,24 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
                     ),
                 )
                 return existing["id"]
+
+            if USE_POSTGRES:
+                row = conn.execute(
+                    """
+                    INSERT INTO users (google_user_id, full_name, email, profile_picture, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (
+                        userinfo["sub"],
+                        userinfo.get("name") or userinfo["email"],
+                        userinfo["email"],
+                        userinfo.get("picture"),
+                        timestamp,
+                        timestamp,
+                    ),
+                ).fetchone()
+                return row["id"]
 
             cursor = conn.execute(
                 """
@@ -321,9 +369,9 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
     def create_session(self, user_id):
         session_token = secrets.token_urlsafe(48)
         timestamp = now()
-        with sqlite3.connect(DB_PATH) as conn:
+        with connect_db() as conn:
             conn.execute(
-                "INSERT INTO sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)",
+                f"INSERT INTO sessions (token_hash, user_id, expires_at, created_at) VALUES ({SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM})",
                 (
                     token_hash(session_token),
                     user_id,
@@ -331,14 +379,14 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
                     timestamp,
                 ),
             )
-            conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (timestamp,))
+            conn.execute(f"DELETE FROM sessions WHERE expires_at <= {SQL_PARAM}", (timestamp,))
         return session_token
 
     def handle_logout(self):
         token = self.read_cookies().get("tg_session")
         if token:
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash(token),))
+            with connect_db() as conn:
+                conn.execute(f"DELETE FROM sessions WHERE token_hash = {SQL_PARAM}", (token_hash(token),))
         self.send_json(
             {"ok": True},
             extra_headers=[("Set-Cookie", cookie_header("tg_session", "", 0))],

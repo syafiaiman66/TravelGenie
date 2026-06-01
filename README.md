@@ -1,6 +1,7 @@
 # TravelGenie
 
 TravelGenie is a travel itinerary planning prototype with server-side Google OAuth 2.0 sign-in.
+It uses SQLite locally and Render Postgres when `DATABASE_URL` is available in production.
 
 ## Run Locally
 
@@ -20,20 +21,21 @@ TravelGenie is a travel itinerary planning prototype with server-side Google OAu
 
    `http://127.0.0.1:8000/`
 
-The app stores verified Google users and sessions in `travelgenie.sqlite3`. Google client secrets stay on the server and are never exposed to browser JavaScript.
+The app stores verified Google users and sessions in `travelgenie.sqlite3` when running locally. On Render, it stores them in Render Postgres. Google client secrets stay on the server and are never exposed to browser JavaScript.
 
 ## Deploy On Render
 
 This project is a custom Python `http.server` app, not Flask, FastAPI, Django, Node, or React.
 
-Use `render.yaml` as a Render Blueprint. Add these environment variables in Render:
+Use `render.yaml` as a Render Blueprint. The Blueprint creates a free Render Postgres database and passes its connection string to the app as `DATABASE_URL`.
+
+Add these environment variables in Render:
 
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
 - `COOKIE_SECURE=true`
 - `HOST=0.0.0.0`
-- `DATA_DIR=/var/data`
 
 After Render creates the service, set `GOOGLE_REDIRECT_URI` to:
 
