@@ -135,15 +135,23 @@ ITINERARY_RESPONSE_SCHEMA = {
         "food": {
             "type": "array",
             "description": "Three local food recommendations as plain strings.",
+            "minItems": 3,
+            "maxItems": 3,
             "items": {"type": "string"},
         },
         "breakdown": {
             "type": "array",
             "description": "Budget categories as an array, never an object/map.",
+            "minItems": 5,
+            "maxItems": 5,
             "items": {
                 "type": "object",
                 "properties": {
-                    "label": {"type": "string", "description": "One of Accommodation, Food, Transportation, Activities, Buffer."},
+                    "label": {
+                        "type": "string",
+                        "enum": ["Accommodation", "Food", "Transportation", "Activities", "Buffer"],
+                        "description": "One required budget category.",
+                    },
                     "percent": {"type": "number", "description": "Percentage of the total budget."},
                     "amount": {"type": "number", "description": "Budget amount in the requested currency."},
                 },
@@ -162,6 +170,8 @@ ITINERARY_RESPONSE_SCHEMA = {
                     "items": {
                         "type": "array",
                         "description": "Exactly four varied activity objects for this day.",
+                        "minItems": 4,
+                        "maxItems": 4,
                         "items": {
                             "type": "object",
                             "properties": {
@@ -475,21 +485,16 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
 
     def generate_itinerary_with_gemini(self, trip_request, api_key):
         prompt = self.build_itinerary_prompt(trip_request)
-        try:
-            gemini_payload = self.request_gemini(prompt, api_key, use_schema=True)
-        except GeminiGenerationError as exc:
-            print(f"Gemini schema request failed; retrying JSON mode only: {exc}", file=sys.stderr, flush=True)
-            gemini_payload = self.request_gemini(prompt, api_key, use_schema=False)
+        gemini_payload = self.request_gemini(prompt, api_key)
         return self.parse_gemini_itinerary(gemini_payload)
 
-    def request_gemini(self, prompt, api_key, use_schema):
+    def request_gemini(self, prompt, api_key):
         generation_config = {
-            "temperature": 0.5,
+            "temperature": 0.35,
             "responseMimeType": "application/json",
-            "maxOutputTokens": 8192,
+            "responseJsonSchema": ITINERARY_RESPONSE_SCHEMA,
+            "maxOutputTokens": 16384,
         }
-        if use_schema:
-            generation_config["responseJsonSchema"] = ITINERARY_RESPONSE_SCHEMA
 
         request_payload = {
             "contents": [
@@ -577,6 +582,7 @@ TRIP_PARAMETERS:
 OUTPUT_CONTRACT:
 Return exactly one JSON object with these top-level keys only:
 destination, country, summary, transport, food, breakdown, schedule.
+The JSON schema is mandatory. Do not invent, rename, omit, or flatten fields.
 
 FIELD_RULES:
 - destination: string. Use the normalized destination name.
@@ -594,6 +600,7 @@ FIELD_RULES:
 - time must be specific, for example 08:30, 10:30, 14:00, 19:30.
 - title must name a real place, meal, route, or activity.
 - notes must describe what the traveler does, 8 to 18 words.
+- cost must be an object with exactly raw and label.
 - cost.raw must be a number in TRIP_PARAMETERS.currency.
 - cost.label and total.label must include TRIP_PARAMETERS.currency or its symbol.
 - total.raw must equal the sum of that day's item cost.raw values.
@@ -606,6 +613,13 @@ QUALITY_RULES:
 - Use cost.raw 0 only for genuinely free activities.
 - Do not output empty arrays.
 - Do not output markdown, comments, explanations, or text before/after JSON.
+
+FORBIDDEN_OUTPUT:
+- Do not return breakdown as an object.
+- Do not return transport as an object.
+- Do not use keys like "cost.raw" or "cost.label".
+- Do not return only one day unless TRIP_PARAMETERS.days is 1.
+- Do not repeat the same day title or activity title.
 """.strip()
 
     def upsert_user(self, userinfo):

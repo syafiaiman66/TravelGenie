@@ -824,13 +824,13 @@ function normalizeSchedule(schedule, request) {
     const attractions = destination.attractions.length ? destination.attractions : [{ name: request.destination, cost: 20 }];
     return createSchedule(destination, attractions, request.days, request.travelers, request.currency);
   }
-  return schedule.map((day, index) => {
+  const normalizedDays = schedule.slice(0, request.days).map((day, index) => {
     const sourceItems = getDayItems(day);
     const normalizedItems = sourceItems.map((item) => ({
       time: item.time || "09:00",
       title: item.title || item.activity || item.name || "Travel activity",
       notes: item.notes || item.description || item.details || "Balanced activity matched to your trip preferences.",
-      cost: normalizeCost(item.cost, request.currency)
+      cost: normalizeCost(item.cost || { raw: item["cost.raw"], label: item["cost.label"] }, request.currency)
     }));
     while (normalizedItems.length < 4) {
       normalizedItems.push(createFallbackActivity(request, index, normalizedItems.length));
@@ -843,6 +843,10 @@ function normalizeSchedule(schedule, request) {
       total: { raw: rawTotal, label: day.total?.label || formatMoney(rawTotal, request.currency) }
     };
   });
+  while (normalizedDays.length < request.days) {
+    normalizedDays.push(createFallbackDay(request, normalizedDays.length));
+  }
+  return normalizedDays;
 }
 
 function getDayItems(day) {
@@ -866,6 +870,17 @@ function createFallbackActivity(request, dayIndex, slotIndex) {
     title: `${titles[slotIndex] || titles[1]} Day ${dayIndex + 1}`,
     notes: "Fallback activity added because Gemini omitted this slot.",
     cost: { raw, label: formatMoney(raw, request.currency) }
+  };
+}
+
+function createFallbackDay(request, dayIndex) {
+  const items = [0, 1, 2, 3].map((slotIndex) => createFallbackActivity(request, dayIndex, slotIndex));
+  const rawTotal = items.reduce((sum, item) => sum + item.cost.raw, 0);
+  return {
+    day: dayIndex + 1,
+    title: `Explore ${request.destination} Day ${dayIndex + 1}`,
+    items,
+    total: { raw: rawTotal, label: formatMoney(rawTotal, request.currency) }
   };
 }
 
@@ -919,11 +934,21 @@ function createBudgetBreakdown(budget) {
 }
 
 function normalizeBreakdown(breakdown, request) {
+  if (breakdown && !Array.isArray(breakdown) && typeof breakdown === "object") {
+    return Object.entries(breakdown).map(([label, value]) => {
+      const amount = Number(value?.amount ?? value?.raw ?? value?.cost?.raw ?? value) || 0;
+      return {
+        label,
+        percent: Number(value?.percent) || Math.round((amount / request.budget) * 100) || 0,
+        amount
+      };
+    });
+  }
   if (!Array.isArray(breakdown) || !breakdown.length) return createBudgetBreakdown(request.budget);
   return breakdown.map((item) => ({
     label: item.label || "Trip cost",
     percent: Number(item.percent) || 0,
-    amount: Number(item.amount) || 0
+    amount: Number(item.amount ?? item.raw ?? item.cost?.raw) || 0
   }));
 }
 
