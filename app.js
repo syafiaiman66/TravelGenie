@@ -750,7 +750,7 @@ async function buildTrip(formData) {
   const tripName = formData.get("tripName").trim() || `${destination} ${days}-Day Trip`;
   const request = { destination, budget, currency, travelers, days, interests, budgetStyle, customPlaces, tripName };
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 90000);
+  const timeout = setTimeout(() => controller.abort(), 180000);
   let response;
   try {
     response = await fetch("/api/itinerary", {

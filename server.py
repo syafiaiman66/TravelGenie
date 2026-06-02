@@ -462,7 +462,7 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=75) as response:
+            with urllib.request.urlopen(request, timeout=180) as response:
                 payload = json.loads(response.read().decode("utf-8"))
                 elapsed = time.monotonic() - started_at
                 print(f"Gemini request finished in {elapsed:.1f}s", file=sys.stderr, flush=True)
