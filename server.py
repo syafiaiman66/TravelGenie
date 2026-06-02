@@ -191,6 +191,28 @@ def strip_json_fence(text):
     return cleaned
 
 
+def parse_itinerary_json(text):
+    cleaned = strip_json_fence(text)
+    attempts = [cleaned]
+
+    if not cleaned.startswith("{") and '"destination"' in cleaned:
+        attempts.append("{" + cleaned.rstrip().rstrip(",") + "}")
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        attempts.append(cleaned[start : end + 1])
+
+    last_error = None
+    for candidate in attempts:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            last_error = exc
+
+    raise last_error or json.JSONDecodeError("Invalid JSON", cleaned, 0)
+
+
 def json_error_summary(detail):
     try:
         payload = json.loads(detail)
@@ -490,7 +512,7 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
             raise GeminiGenerationError(f"Gemini returned no itinerary text. Finish reason: {finish_reason}.")
 
         try:
-            return json.loads(strip_json_fence(text))
+            return parse_itinerary_json(text)
         except json.JSONDecodeError as exc:
             print(f"Gemini returned non-JSON text: {text[:1000]}", file=sys.stderr, flush=True)
             raise GeminiGenerationError("Gemini returned text that was not valid itinerary JSON.") from exc
@@ -533,6 +555,7 @@ Rules:
 - Keep the itinerary compact: exactly 4 schedule items per day.
 - Keep every notes field under 14 words.
 - Return only valid JSON. Do not use markdown.
+- The first character must be {{ and the final character must be }}.
 
 Return this JSON shape exactly:
 {{
