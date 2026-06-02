@@ -120,6 +120,10 @@ def json_bytes(payload):
     return json.dumps(payload, separators=(",", ":")).encode("utf-8")
 
 
+class GeminiGenerationError(Exception):
+    pass
+
+
 ITINERARY_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -185,6 +189,17 @@ def strip_json_fence(text):
         if cleaned.lower().startswith("json"):
             cleaned = cleaned[4:].strip()
     return cleaned
+
+
+def json_error_summary(detail):
+    try:
+        payload = json.loads(detail)
+        message = payload.get("error", {}).get("message")
+        if message:
+            return message
+    except json.JSONDecodeError:
+        pass
+    return detail[:280] if detail else "Gemini did not return an error message."
 
 
 class TravelGenieHandler(SimpleHTTPRequestHandler):
@@ -403,20 +418,38 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
         except ValueError as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            print(f"Gemini API HTTP error {exc.code}: {detail}", file=sys.stderr, flush=True)
-            self.send_json({"error": "gemini_generation_failed"}, HTTPStatus.BAD_GATEWAY)
+        except GeminiGenerationError as exc:
+            self.send_json({"error": "gemini_generation_failed", "detail": str(exc)}, HTTPStatus.BAD_GATEWAY)
             return
         except Exception as exc:
             print(f"Gemini generation error: {exc!r}", file=sys.stderr, flush=True)
-            self.send_json({"error": "gemini_generation_failed"}, HTTPStatus.BAD_GATEWAY)
+            self.send_json(
+                {"error": "gemini_generation_failed", "detail": "The server could not read Gemini's response."},
+                HTTPStatus.BAD_GATEWAY,
+            )
             return
 
         self.send_json({"itinerary": itinerary})
 
     def generate_itinerary_with_gemini(self, trip_request, api_key):
         prompt = self.build_itinerary_prompt(trip_request)
+        try:
+            gemini_payload = self.request_gemini(prompt, api_key, use_schema=True)
+        except GeminiGenerationError as exc:
+            print(f"Gemini structured request failed; retrying without schema: {exc}", file=sys.stderr, flush=True)
+            gemini_payload = self.request_gemini(prompt, api_key, use_schema=False)
+
+        return self.parse_gemini_itinerary(gemini_payload)
+
+    def request_gemini(self, prompt, api_key, use_schema):
+        generation_config = {
+            "temperature": 0.65,
+            "responseMimeType": "application/json",
+            "maxOutputTokens": 8192,
+        }
+        if use_schema:
+            generation_config["responseJsonSchema"] = ITINERARY_RESPONSE_SCHEMA
+
         request_payload = {
             "contents": [
                 {
@@ -424,12 +457,7 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
                     "parts": [{"text": prompt}],
                 }
             ],
-            "generationConfig": {
-                "temperature": 0.65,
-                "responseMimeType": "application/json",
-                "responseJsonSchema": ITINERARY_RESPONSE_SCHEMA,
-                "maxOutputTokens": 8192,
-            },
+            "generationConfig": generation_config,
         }
         url = GEMINI_API_URL.format(model=urllib.parse.quote(GEMINI_MODEL))
         request = urllib.request.Request(
@@ -438,16 +466,28 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
             headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=25) as response:
-            gemini_payload = json.loads(response.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(request, timeout=25) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            summary = json_error_summary(detail)
+            print(f"Gemini API HTTP error {exc.code}: {detail}", file=sys.stderr, flush=True)
+            raise GeminiGenerationError(f"Gemini API error {exc.code}: {summary}") from exc
+
+    def parse_gemini_itinerary(self, gemini_payload):
+        candidate = (gemini_payload.get("candidates") or [{}])[0]
+        parts = candidate.get("content", {}).get("parts") or []
+        text = "".join(part.get("text", "") for part in parts).strip()
+        if not text:
+            finish_reason = candidate.get("finishReason", "unknown")
+            raise GeminiGenerationError(f"Gemini returned no itinerary text. Finish reason: {finish_reason}.")
 
         try:
-            text = gemini_payload["candidates"][0]["content"]["parts"][0]["text"]
-            itinerary = json.loads(strip_json_fence(text))
-        except (KeyError, IndexError, json.JSONDecodeError) as exc:
-            raise ValueError("Gemini returned an itinerary format the app could not read.") from exc
-
-        return itinerary
+            return json.loads(strip_json_fence(text))
+        except json.JSONDecodeError as exc:
+            print(f"Gemini returned non-JSON text: {text[:1000]}", file=sys.stderr, flush=True)
+            raise GeminiGenerationError("Gemini returned text that was not valid itinerary JSON.") from exc
 
     def build_itinerary_prompt(self, trip_request):
         required = ["destination", "budget", "currency", "travelers", "days", "budgetStyle"]

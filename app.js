@@ -777,7 +777,8 @@ async function buildTrip(formData) {
         missing_gemini_config: "Gemini is not configured yet. Add GEMINI_API_KEY on the server.",
         gemini_generation_failed: "Gemini could not generate the itinerary. Please check Render Logs or try again."
       };
-      throw new Error(messages[payload.error] || payload.error || "The itinerary server could not be reached.");
+      const detail = payload.detail ? ` ${payload.detail}` : "";
+      throw new Error(`${messages[payload.error] || payload.error || "The itinerary server could not be reached."}${detail}`);
     }
     return normalizeGeneratedTrip(request, payload.itinerary || {});
   }
