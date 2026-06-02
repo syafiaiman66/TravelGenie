@@ -750,7 +750,7 @@ async function buildTrip(formData) {
   const tripName = formData.get("tripName").trim() || `${destination} ${days}-Day Trip`;
   const request = { destination, budget, currency, travelers, days, interests, budgetStyle, customPlaces, tripName };
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 35000);
+  const timeout = setTimeout(() => controller.abort(), 90000);
   let response;
   try {
     response = await fetch("/api/itinerary", {
@@ -762,7 +762,7 @@ async function buildTrip(formData) {
     });
   } catch (error) {
     if (error.name === "AbortError") {
-      throw new Error("Gemini took too long to respond. Please try a shorter trip or try again.");
+      throw new Error("Gemini took too long to respond. Please try fewer days or try again.");
     }
     throw new Error("The itinerary server could not be reached.");
   } finally {

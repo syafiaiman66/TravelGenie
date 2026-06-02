@@ -440,7 +440,7 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
         generation_config = {
             "temperature": 0.65,
             "responseMimeType": "application/json",
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 6144,
         }
 
         request_payload = {
@@ -453,6 +453,8 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
             "generationConfig": generation_config,
         }
         url = GEMINI_API_URL.format(model=urllib.parse.quote(GEMINI_MODEL))
+        started_at = time.monotonic()
+        print(f"Gemini request started for {GEMINI_MODEL}", file=sys.stderr, flush=True)
         request = urllib.request.Request(
             url,
             data=json_bytes(request_payload),
@@ -460,8 +462,11 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=25) as response:
-                return json.loads(response.read().decode("utf-8"))
+            with urllib.request.urlopen(request, timeout=75) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+                elapsed = time.monotonic() - started_at
+                print(f"Gemini request finished in {elapsed:.1f}s", file=sys.stderr, flush=True)
+                return payload
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             summary = json_error_summary(detail)
@@ -525,6 +530,8 @@ Rules:
 - Match the budget style. Student means low-cost choices, comfort means balanced mid-range, luxury means premium choices.
 - Keep total estimated costs near the total budget and in the requested currency.
 - Include realistic transport guidance and food recommendations.
+- Keep the itinerary compact: exactly 4 schedule items per day.
+- Keep every notes field under 14 words.
 - Return only valid JSON. Do not use markdown.
 
 Return this JSON shape exactly:
