@@ -433,22 +433,15 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
 
     def generate_itinerary_with_gemini(self, trip_request, api_key):
         prompt = self.build_itinerary_prompt(trip_request)
-        try:
-            gemini_payload = self.request_gemini(prompt, api_key, use_schema=True)
-        except GeminiGenerationError as exc:
-            print(f"Gemini structured request failed; retrying without schema: {exc}", file=sys.stderr, flush=True)
-            gemini_payload = self.request_gemini(prompt, api_key, use_schema=False)
-
+        gemini_payload = self.request_gemini(prompt, api_key)
         return self.parse_gemini_itinerary(gemini_payload)
 
-    def request_gemini(self, prompt, api_key, use_schema):
+    def request_gemini(self, prompt, api_key):
         generation_config = {
             "temperature": 0.65,
             "responseMimeType": "application/json",
             "maxOutputTokens": 8192,
         }
-        if use_schema:
-            generation_config["responseJsonSchema"] = ITINERARY_RESPONSE_SCHEMA
 
         request_payload = {
             "contents": [
@@ -474,10 +467,18 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
             summary = json_error_summary(detail)
             print(f"Gemini API HTTP error {exc.code}: {detail}", file=sys.stderr, flush=True)
             raise GeminiGenerationError(f"Gemini API error {exc.code}: {summary}") from exc
+        except urllib.error.URLError as exc:
+            print(f"Gemini network error: {exc!r}", file=sys.stderr, flush=True)
+            raise GeminiGenerationError(f"Could not reach Gemini: {exc.reason}") from exc
 
     def parse_gemini_itinerary(self, gemini_payload):
+        prompt_feedback = gemini_payload.get("promptFeedback") or {}
+        if prompt_feedback.get("blockReason"):
+            raise GeminiGenerationError(f"Gemini blocked the prompt: {prompt_feedback['blockReason']}.")
+
         candidate = (gemini_payload.get("candidates") or [{}])[0]
-        parts = candidate.get("content", {}).get("parts") or []
+        content = candidate.get("content") or {}
+        parts = content.get("parts") or []
         text = "".join(part.get("text", "") for part in parts).strip()
         if not text:
             finish_reason = candidate.get("finishReason", "unknown")
