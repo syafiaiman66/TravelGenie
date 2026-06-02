@@ -3,6 +3,7 @@ import json
 import os
 import secrets
 import sqlite3
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -117,6 +118,64 @@ def token_hash(token):
 
 def json_bytes(payload):
     return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+
+ITINERARY_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "destination": {"type": "string"},
+        "country": {"type": "string"},
+        "summary": {"type": "string"},
+        "transport": {"type": "string"},
+        "food": {"type": "array", "items": {"type": "string"}},
+        "breakdown": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "label": {"type": "string"},
+                    "percent": {"type": "number"},
+                    "amount": {"type": "number"},
+                },
+            },
+        },
+        "schedule": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "day": {"type": "integer"},
+                    "title": {"type": "string"},
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "time": {"type": "string"},
+                                "title": {"type": "string"},
+                                "notes": {"type": "string"},
+                                "cost": {
+                                    "type": "object",
+                                    "properties": {
+                                        "raw": {"type": "number"},
+                                        "label": {"type": "string"},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    "total": {
+                        "type": "object",
+                        "properties": {
+                            "raw": {"type": "number"},
+                            "label": {"type": "string"},
+                        },
+                    },
+                },
+            },
+        },
+    },
+}
 
 
 def strip_json_fence(text):
@@ -344,7 +403,13 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
         except ValueError as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
-        except Exception:
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            print(f"Gemini API HTTP error {exc.code}: {detail}", file=sys.stderr, flush=True)
+            self.send_json({"error": "gemini_generation_failed"}, HTTPStatus.BAD_GATEWAY)
+            return
+        except Exception as exc:
+            print(f"Gemini generation error: {exc!r}", file=sys.stderr, flush=True)
             self.send_json({"error": "gemini_generation_failed"}, HTTPStatus.BAD_GATEWAY)
             return
 
@@ -362,17 +427,18 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
             "generationConfig": {
                 "temperature": 0.65,
                 "responseMimeType": "application/json",
+                "responseJsonSchema": ITINERARY_RESPONSE_SCHEMA,
                 "maxOutputTokens": 8192,
             },
         }
-        url = f"{GEMINI_API_URL.format(model=urllib.parse.quote(GEMINI_MODEL))}?key={urllib.parse.quote(api_key)}"
+        url = GEMINI_API_URL.format(model=urllib.parse.quote(GEMINI_MODEL))
         request = urllib.request.Request(
             url,
             data=json_bytes(request_payload),
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=35) as response:
+        with urllib.request.urlopen(request, timeout=25) as response:
             gemini_payload = json.loads(response.read().decode("utf-8"))
 
         try:

@@ -749,22 +749,38 @@ async function buildTrip(formData) {
   const customPlaces = parseCustomPlaces(formData.get("customPlaces"));
   const tripName = formData.get("tripName").trim() || `${destination} ${days}-Day Trip`;
   const request = { destination, budget, currency, travelers, days, interests, budgetStyle, customPlaces, tripName };
-  const response = await fetch("/api/itinerary", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request)
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const messages = {
-      unauthorized: "Please log in before generating an itinerary.",
-      missing_gemini_config: "Gemini is not configured yet. Add GEMINI_API_KEY on the server.",
-      gemini_generation_failed: "Gemini could not generate the itinerary. Please try again."
-    };
-    throw new Error(messages[payload.error] || payload.error || "The itinerary server could not be reached.");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 35000);
+  let response;
+  try {
+    response = await fetch("/api/itinerary", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Gemini took too long to respond. Please try a shorter trip or try again.");
+    }
+    throw new Error("The itinerary server could not be reached.");
+  } finally {
+    clearTimeout(timeout);
   }
-  return normalizeGeneratedTrip(request, payload.itinerary || {});
+
+  {
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const messages = {
+        unauthorized: "Please log in before generating an itinerary.",
+        missing_gemini_config: "Gemini is not configured yet. Add GEMINI_API_KEY on the server.",
+        gemini_generation_failed: "Gemini could not generate the itinerary. Please check Render Logs or try again."
+      };
+      throw new Error(messages[payload.error] || payload.error || "The itinerary server could not be reached.");
+    }
+    return normalizeGeneratedTrip(request, payload.itinerary || {});
+  }
 }
 
 function parseCustomPlaces(value) {
