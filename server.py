@@ -141,6 +141,7 @@ ITINERARY_RESPONSE_SCHEMA = {
                     "percent": {"type": "NUMBER"},
                     "amount": {"type": "NUMBER"},
                 },
+                "required": ["label", "percent", "amount"],
                 "propertyOrdering": ["label", "percent", "amount"],
             },
         },
@@ -165,9 +166,11 @@ ITINERARY_RESPONSE_SCHEMA = {
                                         "raw": {"type": "NUMBER"},
                                         "label": {"type": "STRING"},
                                     },
+                                    "required": ["raw", "label"],
                                     "propertyOrdering": ["raw", "label"],
                                 },
                             },
+                            "required": ["time", "title", "notes", "cost"],
                             "propertyOrdering": ["time", "title", "notes", "cost"],
                         },
                     },
@@ -177,13 +180,16 @@ ITINERARY_RESPONSE_SCHEMA = {
                             "raw": {"type": "NUMBER"},
                             "label": {"type": "STRING"},
                         },
+                        "required": ["raw", "label"],
                         "propertyOrdering": ["raw", "label"],
                     },
                 },
+                "required": ["day", "title", "items", "total"],
                 "propertyOrdering": ["day", "title", "items", "total"],
             },
         },
     },
+    "required": ["destination", "country", "summary", "transport", "food", "breakdown", "schedule"],
     "propertyOrdering": ["destination", "country", "summary", "transport", "food", "breakdown", "schedule"],
 }
 
@@ -470,9 +476,9 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
 
     def request_gemini(self, prompt, api_key, use_schema):
         generation_config = {
-            "temperature": 0.35,
+            "temperature": 0.5,
             "responseMimeType": "application/json",
-            "maxOutputTokens": 4096,
+            "maxOutputTokens": 8192,
         }
         if use_schema:
             generation_config["responseSchema"] = ITINERARY_RESPONSE_SCHEMA
@@ -564,8 +570,13 @@ STRICT OUTPUT RULES:
 - Output only one valid JSON object, no markdown, no commentary.
 - Use exactly these top-level keys: destination, country, summary, transport, food, breakdown, schedule.
 - schedule must contain exactly INPUT.days objects.
-- Each day must contain exactly 3 items: morning, afternoon, evening.
-- Use short strings. Keep notes under 10 words.
+- Each day must contain exactly 4 varied items: breakfast/arrival, morning, afternoon, evening.
+- Each item must have a specific time, activity title, practical description in notes, and estimated cost.
+- Do not repeat the same item title on different days.
+- Use real place names and route nearby places together.
+- Keep notes between 8 and 18 words.
+- Never output an empty items array.
+- Use cost.raw 0 only for genuinely free activities.
 - Put all costs in INPUT.currency. cost.raw and total.raw must be numbers.
 - breakdown must contain exactly: Accommodation, Food, Transportation, Activities, Buffer.
 - The requested places must appear in schedule when realistic.

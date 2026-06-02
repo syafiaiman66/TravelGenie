@@ -794,6 +794,9 @@ function parseCustomPlaces(value) {
 function normalizeGeneratedTrip(request, generated) {
   const destination = generated.destination || request.destination;
   const country = generated.country || "";
+  const food = Array.isArray(generated.food) && generated.food.length
+    ? generated.food.map(stringifyValue)
+    : ["Local market meals", "Popular neighborhood restaurants", "Regional snacks"];
   return {
     id: crypto.randomUUID(),
     name: request.tripName,
@@ -809,8 +812,8 @@ function normalizeGeneratedTrip(request, generated) {
     summary: generated.summary || "",
     schedule: normalizeSchedule(generated.schedule, request),
     breakdown: normalizeBreakdown(generated.breakdown, request),
-    transport: generated.transport || "Use local transit, walking routes, and ride-hailing where practical.",
-    food: Array.isArray(generated.food) && generated.food.length ? generated.food : ["Local market meals", "Popular neighborhood restaurants", "Regional snacks"],
+    transport: stringifyValue(generated.transport) || "Use local transit, walking routes, and ride-hailing where practical.",
+    food,
     createdAt: new Date().toISOString()
   };
 }
@@ -822,13 +825,16 @@ function normalizeSchedule(schedule, request) {
     return createSchedule(destination, attractions, request.days, request.travelers, request.currency);
   }
   return schedule.map((day, index) => {
-    const items = Array.isArray(day.items) ? day.items : [];
-    const normalizedItems = items.map((item) => ({
+    const sourceItems = getDayItems(day);
+    const normalizedItems = sourceItems.map((item) => ({
       time: item.time || "09:00",
-      title: item.title || "Travel activity",
-      notes: item.notes || "",
+      title: item.title || item.activity || item.name || "Travel activity",
+      notes: item.notes || item.description || item.details || "Balanced activity matched to your trip preferences.",
       cost: normalizeCost(item.cost, request.currency)
     }));
+    while (normalizedItems.length < 4) {
+      normalizedItems.push(createFallbackActivity(request, index, normalizedItems.length));
+    }
     const rawTotal = Number(day.total?.raw) || normalizedItems.reduce((sum, item) => sum + item.cost.raw, 0);
     return {
       day: Number(day.day) || index + 1,
@@ -837,6 +843,30 @@ function normalizeSchedule(schedule, request) {
       total: { raw: rawTotal, label: day.total?.label || formatMoney(rawTotal, request.currency) }
     };
   });
+}
+
+function getDayItems(day) {
+  if (Array.isArray(day.items)) return day.items;
+  if (Array.isArray(day.activities)) return day.activities;
+  if (Array.isArray(day.itinerary)) return day.itinerary;
+  return [];
+}
+
+function createFallbackActivity(request, dayIndex, slotIndex) {
+  const times = ["09:00", "13:00", "18:00", "20:00"];
+  const titles = [
+    `${request.destination} local breakfast and orientation`,
+    `${request.destination} cultural highlight`,
+    `${request.destination} food and market stop`,
+    `${request.destination} evening walk`
+  ];
+  const raw = Math.round((request.budget / Math.max(request.days, 1)) * [0.08, 0.14, 0.16, 0.1][slotIndex]);
+  return {
+    time: times[slotIndex] || "09:00",
+    title: `${titles[slotIndex] || titles[1]} Day ${dayIndex + 1}`,
+    notes: "Fallback activity added because Gemini omitted this slot.",
+    cost: { raw, label: formatMoney(raw, request.currency) }
+  };
 }
 
 function createSchedule(destination, attractions, days, travelers, currency) {
@@ -898,9 +928,22 @@ function normalizeBreakdown(breakdown, request) {
 }
 
 function normalizeCost(cost, currency) {
+  if (typeof cost === "number") return { raw: cost, label: formatMoney(cost, currency) };
+  if (typeof cost === "string") {
+    const raw = Number(cost.replace(/[^0-9.]/g, "")) || 0;
+    return { raw, label: cost || formatMoney(raw, currency) };
+  }
   if (!cost || typeof cost !== "object") return { raw: 0, label: formatMoney(0, currency) };
   const raw = Number(cost.raw) || 0;
   return { raw, label: cost.label || formatMoney(raw, currency) };
+}
+
+function stringifyValue(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(stringifyValue).filter(Boolean).join(", ");
+  if (typeof value === "object") return Object.values(value).map(stringifyValue).filter(Boolean).join(" ");
+  return String(value);
 }
 
 function renderResult(trip) {
