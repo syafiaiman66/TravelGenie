@@ -125,60 +125,66 @@ class GeminiGenerationError(Exception):
 
 
 ITINERARY_RESPONSE_SCHEMA = {
-    "type": "object",
+    "type": "OBJECT",
     "properties": {
-        "destination": {"type": "string"},
-        "country": {"type": "string"},
-        "summary": {"type": "string"},
-        "transport": {"type": "string"},
-        "food": {"type": "array", "items": {"type": "string"}},
+        "destination": {"type": "STRING"},
+        "country": {"type": "STRING"},
+        "summary": {"type": "STRING"},
+        "transport": {"type": "STRING"},
+        "food": {"type": "ARRAY", "items": {"type": "STRING"}},
         "breakdown": {
-            "type": "array",
+            "type": "ARRAY",
             "items": {
-                "type": "object",
+                "type": "OBJECT",
                 "properties": {
-                    "label": {"type": "string"},
-                    "percent": {"type": "number"},
-                    "amount": {"type": "number"},
+                    "label": {"type": "STRING"},
+                    "percent": {"type": "NUMBER"},
+                    "amount": {"type": "NUMBER"},
                 },
+                "propertyOrdering": ["label", "percent", "amount"],
             },
         },
         "schedule": {
-            "type": "array",
+            "type": "ARRAY",
             "items": {
-                "type": "object",
+                "type": "OBJECT",
                 "properties": {
-                    "day": {"type": "integer"},
-                    "title": {"type": "string"},
+                    "day": {"type": "INTEGER"},
+                    "title": {"type": "STRING"},
                     "items": {
-                        "type": "array",
+                        "type": "ARRAY",
                         "items": {
-                            "type": "object",
+                            "type": "OBJECT",
                             "properties": {
-                                "time": {"type": "string"},
-                                "title": {"type": "string"},
-                                "notes": {"type": "string"},
+                                "time": {"type": "STRING"},
+                                "title": {"type": "STRING"},
+                                "notes": {"type": "STRING"},
                                 "cost": {
-                                    "type": "object",
+                                    "type": "OBJECT",
                                     "properties": {
-                                        "raw": {"type": "number"},
-                                        "label": {"type": "string"},
+                                        "raw": {"type": "NUMBER"},
+                                        "label": {"type": "STRING"},
                                     },
+                                    "propertyOrdering": ["raw", "label"],
                                 },
                             },
+                            "propertyOrdering": ["time", "title", "notes", "cost"],
                         },
                     },
                     "total": {
-                        "type": "object",
+                        "type": "OBJECT",
                         "properties": {
-                            "raw": {"type": "number"},
-                            "label": {"type": "string"},
+                            "raw": {"type": "NUMBER"},
+                            "label": {"type": "STRING"},
                         },
+                        "propertyOrdering": ["raw", "label"],
                     },
                 },
+                "propertyOrdering": ["day", "title", "items", "total"],
             },
         },
     },
+    "propertyOrdering": ["destination", "country", "summary", "transport", "food", "breakdown", "schedule"],
 }
 
 
@@ -455,15 +461,21 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
 
     def generate_itinerary_with_gemini(self, trip_request, api_key):
         prompt = self.build_itinerary_prompt(trip_request)
-        gemini_payload = self.request_gemini(prompt, api_key)
+        try:
+            gemini_payload = self.request_gemini(prompt, api_key, use_schema=True)
+        except GeminiGenerationError as exc:
+            print(f"Gemini schema request failed; retrying JSON mode only: {exc}", file=sys.stderr, flush=True)
+            gemini_payload = self.request_gemini(prompt, api_key, use_schema=False)
         return self.parse_gemini_itinerary(gemini_payload)
 
-    def request_gemini(self, prompt, api_key):
+    def request_gemini(self, prompt, api_key, use_schema):
         generation_config = {
-            "temperature": 0.65,
+            "temperature": 0.35,
             "responseMimeType": "application/json",
-            "maxOutputTokens": 6144,
+            "maxOutputTokens": 4096,
         }
+        if use_schema:
+            generation_config["responseSchema"] = ITINERARY_RESPONSE_SCHEMA
 
         request_payload = {
             "contents": [
@@ -543,45 +555,21 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
         }
 
         return f"""
-You are TravelGenie, a practical travel planner. Generate a realistic itinerary from this request:
+Create a travel itinerary JSON object.
+
+INPUT:
 {json.dumps(prompt_payload, ensure_ascii=False)}
 
-Rules:
-- The user may enter any destination and any places they want to visit.
-- Prioritize the user's requested places when possible, but organize them by geography and pacing.
-- Match the budget style. Student means low-cost choices, comfort means balanced mid-range, luxury means premium choices.
-- Keep total estimated costs near the total budget and in the requested currency.
-- Include realistic transport guidance and food recommendations.
-- Keep the itinerary compact: exactly 4 schedule items per day.
-- Keep every notes field under 14 words.
-- Return only valid JSON. Do not use markdown.
-- The first character must be {{ and the final character must be }}.
-
-Return this JSON shape exactly:
-{{
-  "destination": "City or region",
-  "country": "Country",
-  "summary": "One short planning note",
-  "transport": "One practical transport paragraph",
-  "food": ["recommendation 1", "recommendation 2", "recommendation 3"],
-  "breakdown": [
-    {{"label": "Accommodation", "percent": 35, "amount": 0}},
-    {{"label": "Food", "percent": 20, "amount": 0}},
-    {{"label": "Transportation", "percent": 15, "amount": 0}},
-    {{"label": "Activities", "percent": 20, "amount": 0}},
-    {{"label": "Buffer", "percent": 10, "amount": 0}}
-  ],
-  "schedule": [
-    {{
-      "day": 1,
-      "title": "Day theme",
-      "items": [
-        {{"time": "09:00", "title": "Activity name", "cost": {{"raw": 0, "label": "formatted cost"}}, "notes": "short reason or tip"}}
-      ],
-      "total": {{"raw": 0, "label": "formatted daily total"}}
-    }}
-  ]
-}}
+STRICT OUTPUT RULES:
+- Output only one valid JSON object, no markdown, no commentary.
+- Use exactly these top-level keys: destination, country, summary, transport, food, breakdown, schedule.
+- schedule must contain exactly INPUT.days objects.
+- Each day must contain exactly 3 items: morning, afternoon, evening.
+- Use short strings. Keep notes under 10 words.
+- Put all costs in INPUT.currency. cost.raw and total.raw must be numbers.
+- breakdown must contain exactly: Accommodation, Food, Transportation, Activities, Buffer.
+- The requested places must appear in schedule when realistic.
+- Budget style controls choices: Student/Backpacker cheap, Comfort balanced, Luxury premium.
 """.strip()
 
     def upsert_user(self, userinfo):
