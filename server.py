@@ -605,6 +605,44 @@ FIELD_RULES:
 - cost.label and total.label must include TRIP_PARAMETERS.currency or its symbol.
 - total.raw must equal the sum of that day's item cost.raw values.
 
+APP_JS_JSON_FORMAT:
+Use this exact shape because the frontend app.js renders these fields directly.
+Replace all example values with real itinerary values for TRIP_PARAMETERS.
+Repeat the schedule day object until schedule.length equals TRIP_PARAMETERS.days.
+Each day.items array must contain exactly 4 activity objects.
+Do not copy placeholder text.
+{{
+  "destination": "Destination name from TRIP_PARAMETERS",
+  "country": "Destination country",
+  "summary": "Short trip overview under 25 words.",
+  "transport": "One plain-text transport paragraph under 45 words.",
+  "food": [
+    "Local food recommendation 1",
+    "Local food recommendation 2",
+    "Local food recommendation 3"
+  ],
+  "breakdown": [
+    {{"label": "Accommodation", "percent": 35, "amount": 0}},
+    {{"label": "Food", "percent": 20, "amount": 0}},
+    {{"label": "Transportation", "percent": 15, "amount": 0}},
+    {{"label": "Activities", "percent": 20, "amount": 0}},
+    {{"label": "Buffer", "percent": 10, "amount": 0}}
+  ],
+  "schedule": [
+    {{
+      "day": 1,
+      "title": "Unique day theme",
+      "items": [
+        {{"time": "08:30", "title": "Breakfast or arrival activity", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "MYR0"}}}},
+        {{"time": "10:30", "title": "Morning activity at a real place", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "MYR0"}}}},
+        {{"time": "14:00", "title": "Afternoon activity at a real place", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "MYR0"}}}},
+        {{"time": "19:30", "title": "Evening meal or nightlife activity", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "MYR0"}}}}
+      ],
+      "total": {{"raw": 0, "label": "MYR0"}}
+    }}
+  ]
+}}
+
 QUALITY_RULES:
 - Create varied activities across days. Do not repeat activity titles.
 - Route nearby places together in the same day.
@@ -620,6 +658,13 @@ FORBIDDEN_OUTPUT:
 - Do not use keys like "cost.raw" or "cost.label".
 - Do not return only one day unless TRIP_PARAMETERS.days is 1.
 - Do not repeat the same day title or activity title.
+
+FINAL_SELF_CHECK:
+- Does schedule.length equal TRIP_PARAMETERS.days?
+- Does every day have exactly 4 items?
+- Does every item have time, title, notes, and nested cost?
+- Is breakdown an array of exactly 5 objects?
+- Is the final answer valid JSON only?
 """.strip()
 
     def upsert_user(self, userinfo):
