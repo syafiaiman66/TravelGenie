@@ -18,6 +18,8 @@ SESSION_DAYS = 7
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 
 def load_env_file():
@@ -117,6 +119,15 @@ def json_bytes(payload):
     return json.dumps(payload, separators=(",", ":")).encode("utf-8")
 
 
+def strip_json_fence(text):
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`").strip()
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].strip()
+    return cleaned
+
+
 class TravelGenieHandler(SimpleHTTPRequestHandler):
     server_version = "TravelGenie/1.0"
 
@@ -146,6 +157,9 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/itinerary":
+            self.handle_generate_itinerary()
+            return
         if parsed.path == "/auth/logout":
             self.handle_logout()
             return
@@ -166,6 +180,13 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
                 self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
+
+    def read_json_body(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        if length <= 0:
+            return {}
+        raw_body = self.rfile.read(length).decode("utf-8")
+        return json.loads(raw_body)
 
     def redirect(self, location, extra_headers=None):
         self.send_response(HTTPStatus.FOUND)
@@ -306,6 +327,125 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
         if not userinfo.get("sub") or not userinfo.get("email") or not userinfo.get("email_verified"):
             raise ValueError("Google account is not verified")
         return userinfo
+
+    def handle_generate_itinerary(self):
+        if not self.get_session_user():
+            self.send_json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            return
+
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            self.send_json({"error": "missing_gemini_config"}, HTTPStatus.SERVICE_UNAVAILABLE)
+            return
+
+        try:
+            trip_request = self.read_json_body()
+            itinerary = self.generate_itinerary_with_gemini(trip_request, api_key)
+        except ValueError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+        except Exception:
+            self.send_json({"error": "gemini_generation_failed"}, HTTPStatus.BAD_GATEWAY)
+            return
+
+        self.send_json({"itinerary": itinerary})
+
+    def generate_itinerary_with_gemini(self, trip_request, api_key):
+        prompt = self.build_itinerary_prompt(trip_request)
+        request_payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}],
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.65,
+                "responseMimeType": "application/json",
+                "maxOutputTokens": 8192,
+            },
+        }
+        url = f"{GEMINI_API_URL.format(model=urllib.parse.quote(GEMINI_MODEL))}?key={urllib.parse.quote(api_key)}"
+        request = urllib.request.Request(
+            url,
+            data=json_bytes(request_payload),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=35) as response:
+            gemini_payload = json.loads(response.read().decode("utf-8"))
+
+        try:
+            text = gemini_payload["candidates"][0]["content"]["parts"][0]["text"]
+            itinerary = json.loads(strip_json_fence(text))
+        except (KeyError, IndexError, json.JSONDecodeError) as exc:
+            raise ValueError("Gemini returned an itinerary format the app could not read.") from exc
+
+        return itinerary
+
+    def build_itinerary_prompt(self, trip_request):
+        required = ["destination", "budget", "currency", "travelers", "days", "budgetStyle"]
+        missing = [key for key in required if not trip_request.get(key)]
+        if missing:
+            raise ValueError(f"Missing required trip fields: {', '.join(missing)}")
+
+        destination = str(trip_request["destination"]).strip()
+        budget = float(trip_request["budget"])
+        travelers = int(trip_request["travelers"])
+        days = int(trip_request["days"])
+        if budget <= 0 or travelers <= 0 or days <= 0:
+            raise ValueError("Budget, travelers, and days must be greater than zero.")
+
+        prompt_payload = {
+            "destination": destination,
+            "totalBudget": budget,
+            "currency": str(trip_request["currency"]).strip(),
+            "travelers": travelers,
+            "days": min(days, 21),
+            "tripName": str(trip_request.get("tripName") or "").strip(),
+            "interests": trip_request.get("interests") or [],
+            "placesUserWants": trip_request.get("customPlaces") or [],
+            "budgetStyle": str(trip_request["budgetStyle"]).strip(),
+        }
+
+        return f"""
+You are TravelGenie, a practical travel planner. Generate a realistic itinerary from this request:
+{json.dumps(prompt_payload, ensure_ascii=False)}
+
+Rules:
+- The user may enter any destination and any places they want to visit.
+- Prioritize the user's requested places when possible, but organize them by geography and pacing.
+- Match the budget style. Student means low-cost choices, comfort means balanced mid-range, luxury means premium choices.
+- Keep total estimated costs near the total budget and in the requested currency.
+- Include realistic transport guidance and food recommendations.
+- Return only valid JSON. Do not use markdown.
+
+Return this JSON shape exactly:
+{{
+  "destination": "City or region",
+  "country": "Country",
+  "summary": "One short planning note",
+  "transport": "One practical transport paragraph",
+  "food": ["recommendation 1", "recommendation 2", "recommendation 3"],
+  "breakdown": [
+    {{"label": "Accommodation", "percent": 35, "amount": 0}},
+    {{"label": "Food", "percent": 20, "amount": 0}},
+    {{"label": "Transportation", "percent": 15, "amount": 0}},
+    {{"label": "Activities", "percent": 20, "amount": 0}},
+    {{"label": "Buffer", "percent": 10, "amount": 0}}
+  ],
+  "schedule": [
+    {{
+      "day": 1,
+      "title": "Day theme",
+      "items": [
+        {{"time": "09:00", "title": "Activity name", "cost": {{"raw": 0, "label": "formatted cost"}}, "notes": "short reason or tip"}}
+      ],
+      "total": {{"raw": 0, "label": "formatted daily total"}}
+    }}
+  ]
+}}
+""".strip()
 
     def upsert_user(self, userinfo):
         timestamp = now()

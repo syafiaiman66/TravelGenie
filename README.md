@@ -1,6 +1,6 @@
 # TravelGenie
 
-TravelGenie is a travel itinerary planning prototype with server-side Google OAuth 2.0 sign-in.
+TravelGenie is a travel itinerary planning prototype with server-side Google OAuth 2.0 sign-in and Gemini itinerary generation.
 It uses SQLite locally and Render Postgres when `DATABASE_URL` is available in production.
 
 ## Run Locally
@@ -34,6 +34,8 @@ Add these environment variables in Render:
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL=gemini-2.5-flash`
 - `COOKIE_SECURE=true`
 - `HOST=0.0.0.0`
 

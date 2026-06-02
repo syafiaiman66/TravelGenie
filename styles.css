@@ -313,6 +313,7 @@ h3 {
 .hero-search input,
 .field input,
 .field select,
+.field textarea,
 .auth-card input {
   width: 100%;
   border: 1px solid var(--line);
@@ -323,12 +324,26 @@ h3 {
   outline: none;
 }
 
+.field textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.places-field {
+  margin-top: 18px;
+}
+
+.budget-style-group {
+  margin-bottom: 0;
+}
+
 .hero-search input {
   border-color: transparent;
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: var(--green);
   box-shadow: 0 0 0 3px rgba(244, 116, 20, 0.18);
 }
@@ -694,6 +709,12 @@ select:focus {
   align-items: baseline;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--line);
+}
+
+.day-card li small {
+  grid-column: 2 / -1;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .day-card li:last-child {

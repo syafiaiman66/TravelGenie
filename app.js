@@ -522,7 +522,7 @@ const destinationInput = document.querySelector("#destination");
 const heroDestinationInput = document.querySelector("#hero-destination");
 const suggestionBox = document.querySelector("#destination-suggestions");
 const destinationMessage = document.querySelector("#destination-message");
-const attractionOptions = document.querySelector("#attraction-options");
+const customPlacesInput = document.querySelector("#custom-places");
 const currencySelect = document.querySelector("#currency");
 const tripForm = document.querySelector("#trip-form");
 const resultSection = document.querySelector("#result");
@@ -537,10 +537,10 @@ const adminAttractions = document.querySelector("#admin-attractions");
 
 function init() {
   populateCurrencies();
-  renderAttractionOptions("Tokyo");
   applyAuthState();
   showAuthRedirectMessage();
   refreshSession();
+  updateBudgetTip();
   updateAdminStats();
   updateCounts();
   renderTripList();
@@ -565,7 +565,6 @@ function bindEvents() {
     }
     if (heroDestinationInput.value.trim()) {
       destinationInput.value = normalizeDestination(heroDestinationInput.value.trim());
-      renderAttractionOptions(destinationInput.value);
       updateBudgetTip();
     }
     document.querySelector("#planner").scrollIntoView({ behavior: "smooth" });
@@ -575,36 +574,44 @@ function bindEvents() {
   destinationInput.addEventListener("input", handleDestinationInput);
   destinationInput.addEventListener("blur", () => setTimeout(() => suggestionBox.classList.remove("active"), 160));
   destinationInput.addEventListener("change", () => {
-    renderAttractionOptions(destinationInput.value);
     updateBudgetTip();
   });
 
-  tripForm.addEventListener("submit", (event) => {
+  tripForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!state.isLoggedIn) {
       openAuth("login");
       return;
     }
-    const trip = buildTrip(new FormData(tripForm));
-    state.currentTrip = trip;
-    saveRecentTrip(trip);
-    renderResult(trip);
-    updateCounts();
-    renderTripList();
+    const submitButton = tripForm.querySelector("[type='submit']");
+    const originalLabel = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = "Generating...";
+    resultSection.innerHTML = `<div class="empty-result"><h2>Generating your itinerary</h2><p>Gemini is arranging the route, budget, meals, and daily timing.</p></div>`;
     resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    try {
+      const trip = await buildTrip(new FormData(tripForm));
+      state.currentTrip = trip;
+      saveRecentTrip(trip);
+      renderResult(trip);
+      updateCounts();
+      renderTripList();
+    } catch (error) {
+      resultSection.innerHTML = `<div class="empty-result"><h2>Could not generate itinerary</h2><p>${escapeHtml(
+        error.message
+      )}</p></div>`;
+      showToast(error.message);
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = originalLabel;
+    }
   });
 
   tripForm.addEventListener("reset", () => {
     setTimeout(() => {
-      renderAttractionOptions("Tokyo");
       destinationMessage.textContent = "";
       updateBudgetTip();
     }, 0);
-  });
-
-  document.querySelector("#recommend-button").addEventListener("click", () => {
-    const selected = getDestination(destinationInput.value);
-    renderAttractionOptions(selected.name, true);
   });
 
   document.querySelector("#show-saved").addEventListener("click", () => {
@@ -656,7 +663,7 @@ function handleDestinationInput() {
 
   const suggestions = getSuggestions(query);
   if (!suggestions.length) {
-    destinationMessage.textContent = "Location is not available. Please try another destination.";
+    destinationMessage.textContent = "Gemini can plan this destination. Add any must-visit places below.";
     suggestionBox.classList.remove("active");
     return;
   }
@@ -667,7 +674,6 @@ function handleDestinationInput() {
     button.textContent = suggestion;
     button.addEventListener("mousedown", () => {
       destinationInput.value = normalizeDestination(suggestion);
-      renderAttractionOptions(destinationInput.value);
       updateBudgetTip();
       suggestionBox.classList.remove("active");
     });
@@ -722,64 +728,98 @@ function searchKey(value) {
 
 function getDestination(value) {
   const normalized = normalizeDestination(value || "Tokyo");
-  const name = destinationData[normalized] ? normalized : "Tokyo";
-  return { name, ...destinationData[name] };
-}
-
-function renderAttractionOptions(destination, autoSelect = false) {
-  const data = getDestination(destination);
-  attractionOptions.innerHTML = "";
-  data.attractions.forEach((attraction, index) => {
-    const label = document.createElement("label");
-    label.innerHTML = `<input type="checkbox" name="places" value="${attraction.name}" ${
-      autoSelect || index < 4 ? "checked" : ""
-    } /> ${attraction.name}`;
-    attractionOptions.append(label);
-  });
-  updateBudgetTip();
+  if (destinationData[normalized]) return { name: normalized, ...destinationData[normalized] };
+  return { name: value || "Tokyo", country: "", transport: "", food: [], attractions: [] };
 }
 
 function updateBudgetTip() {
   const data = getDestination(destinationInput.value);
-  budgetTip.textContent = `${data.name}, ${data.country}: keep 36% for accommodation, 20% for food, 12% for transport, 18% for attractions, and 14% for emergency funds.`;
+  const place = data.country ? `${data.name}, ${data.country}` : data.name;
+  budgetTip.textContent = `${place}: Gemini will adapt the budget to your selected style and requested places.`;
 }
 
-function buildTrip(formData) {
-  const destination = getDestination(formData.get("destination"));
+async function buildTrip(formData) {
+  const destination = formData.get("destination").trim();
   const budget = Number(formData.get("budget"));
   const currency = formData.get("currency");
   const travelers = Number(formData.get("travelers"));
   const days = Number(formData.get("days"));
   const interests = formData.getAll("interests");
-  const selectedPlaces = formData.getAll("places");
-  const selectedAttractions = selectAttractions(destination, interests, selectedPlaces);
-  const tripName =
-    formData.get("tripName").trim() || `${destination.name} ${days}-Day Trip`;
+  const budgetStyle = formData.get("budgetStyle");
+  const customPlaces = parseCustomPlaces(formData.get("customPlaces"));
+  const tripName = formData.get("tripName").trim() || `${destination} ${days}-Day Trip`;
+  const request = { destination, budget, currency, travelers, days, interests, budgetStyle, customPlaces, tripName };
+  const response = await fetch("/api/itinerary", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const messages = {
+      unauthorized: "Please log in before generating an itinerary.",
+      missing_gemini_config: "Gemini is not configured yet. Add GEMINI_API_KEY on the server.",
+      gemini_generation_failed: "Gemini could not generate the itinerary. Please try again."
+    };
+    throw new Error(messages[payload.error] || payload.error || "The itinerary server could not be reached.");
+  }
+  return normalizeGeneratedTrip(request, payload.itinerary || {});
+}
 
+function parseCustomPlaces(value) {
+  return [...new Set(String(value || "")
+    .split(/[\n,;]+/)
+    .map((place) => place.trim())
+    .filter(Boolean))];
+}
+
+function normalizeGeneratedTrip(request, generated) {
+  const destination = generated.destination || request.destination;
+  const country = generated.country || "";
   return {
     id: crypto.randomUUID(),
-    name: tripName,
-    destination: destination.name,
-    country: destination.country,
-    budget,
-    currency,
-    travelers,
-    days,
-    interests,
-    selectedPlaces,
-    schedule: createSchedule(destination, selectedAttractions, days, travelers, currency),
-    breakdown: createBudgetBreakdown(budget),
-    transport: destination.transport,
-    food: destination.food,
+    name: request.tripName,
+    destination,
+    country,
+    budget: request.budget,
+    currency: request.currency,
+    travelers: request.travelers,
+    days: request.days,
+    interests: request.interests,
+    budgetStyle: request.budgetStyle,
+    customPlaces: request.customPlaces,
+    summary: generated.summary || "",
+    schedule: normalizeSchedule(generated.schedule, request),
+    breakdown: normalizeBreakdown(generated.breakdown, request),
+    transport: generated.transport || "Use local transit, walking routes, and ride-hailing where practical.",
+    food: Array.isArray(generated.food) && generated.food.length ? generated.food : ["Local market meals", "Popular neighborhood restaurants", "Regional snacks"],
     createdAt: new Date().toISOString()
   };
 }
 
-function selectAttractions(destination, interests, selectedPlaces) {
-  const manual = destination.attractions.filter((attraction) => selectedPlaces.includes(attraction.name));
-  const recommended = destination.attractions.filter((attraction) => interests.includes(attraction.category));
-  const combined = [...manual, ...recommended, ...destination.attractions];
-  return combined.filter((attraction, index, list) => list.findIndex((item) => item.name === attraction.name) === index);
+function normalizeSchedule(schedule, request) {
+  if (!Array.isArray(schedule) || !schedule.length) {
+    const destination = getDestination(request.destination);
+    const attractions = destination.attractions.length ? destination.attractions : [{ name: request.destination, cost: 20 }];
+    return createSchedule(destination, attractions, request.days, request.travelers, request.currency);
+  }
+  return schedule.map((day, index) => {
+    const items = Array.isArray(day.items) ? day.items : [];
+    const normalizedItems = items.map((item) => ({
+      time: item.time || "09:00",
+      title: item.title || "Travel activity",
+      notes: item.notes || "",
+      cost: normalizeCost(item.cost, request.currency)
+    }));
+    const rawTotal = Number(day.total?.raw) || normalizedItems.reduce((sum, item) => sum + item.cost.raw, 0);
+    return {
+      day: Number(day.day) || index + 1,
+      title: day.title || `Explore ${request.destination}`,
+      items: normalizedItems,
+      total: { raw: rawTotal, label: day.total?.label || formatMoney(rawTotal, request.currency) }
+    };
+  });
 }
 
 function createSchedule(destination, attractions, days, travelers, currency) {
@@ -792,8 +832,9 @@ function createSchedule(destination, attractions, days, travelers, currency) {
     for (let slot = 1; slot < times.length; slot += 1) {
       const attraction = attractions[(day + slot - 2) % attractions.length];
       const isMeal = slot === 2 || slot === 5;
+      const foods = destination.food.length ? destination.food : ["Local breakfast", "Neighborhood lunch", "Regional dinner"];
       const title = isMeal
-        ? `${destination.food[(day + slot) % destination.food.length]}`
+        ? `${foods[(day + slot) % foods.length]}`
         : attraction.name;
       const cost = isMeal ? 24 * travelers : attraction.cost * travelers;
       dayItems.push({ time: times[slot], title, cost: convertCost(cost, currency) });
@@ -830,20 +871,39 @@ function createBudgetBreakdown(budget) {
   ];
 }
 
+function normalizeBreakdown(breakdown, request) {
+  if (!Array.isArray(breakdown) || !breakdown.length) return createBudgetBreakdown(request.budget);
+  return breakdown.map((item) => ({
+    label: item.label || "Trip cost",
+    percent: Number(item.percent) || 0,
+    amount: Number(item.amount) || 0
+  }));
+}
+
+function normalizeCost(cost, currency) {
+  if (!cost || typeof cost !== "object") return { raw: 0, label: formatMoney(0, currency) };
+  const raw = Number(cost.raw) || 0;
+  return { raw, label: cost.label || formatMoney(raw, currency) };
+}
+
 function renderResult(trip) {
   const safeName = escapeHtml(trip.name);
   const safeDestination = escapeHtml(trip.destination);
   const safeCountry = escapeHtml(trip.country);
+  const locationText = safeCountry ? `${safeDestination}, ${safeCountry}` : safeDestination;
   resultSection.innerHTML = `
     <article class="result-card">
       <div class="result-header">
         <div>
           <p class="eyebrow">Generated Itinerary</p>
           <h2>${safeName}</h2>
-          <p>${safeDestination}, ${safeCountry} • ${trip.days} days • ${trip.travelers} travelers • ${formatMoney(
+          <p>${locationText} • ${trip.days} days • ${trip.travelers} travelers • ${escapeHtml(
+    trip.budgetStyle || "Comfort"
+  )} • ${formatMoney(
     trip.budget,
     trip.currency
   )}</p>
+          ${trip.summary ? `<p>${escapeHtml(trip.summary)}</p>` : ""}
         </div>
         <div class="result-actions">
           <button class="secondary-button" type="button" data-action="save">Save</button>
@@ -878,6 +938,13 @@ function renderResult(trip) {
             <h3>Food Recommendations</h3>
             <p>${trip.food.map(escapeHtml).join(", ")}</p>
           </section>
+          ${
+            trip.customPlaces?.length
+              ? `<section class="transport-card"><h3>Requested Places</h3><p>${trip.customPlaces
+                  .map(escapeHtml)
+                  .join(", ")}</p></section>`
+              : ""
+          }
         </aside>
       </div>
     </article>
@@ -901,6 +968,7 @@ function renderDay(day) {
             <span class="time">${item.time}</span>
             <span>${escapeHtml(item.title)}</span>
             <span class="cost-pill">${item.cost.label}</span>
+            ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ""}
           </li>`
           )
           .join("")}
@@ -957,14 +1025,14 @@ function editTrip(trip) {
   document.querySelector("#travelers").value = trip.travelers;
   document.querySelector("#days").value = trip.days;
   document.querySelector("#trip-name").value = trip.name;
+  customPlacesInput.value = (trip.customPlaces || trip.selectedPlaces || []).join(", ");
 
   document.querySelectorAll("[name='interests']").forEach((checkbox) => {
     checkbox.checked = trip.interests.includes(checkbox.value);
   });
 
-  renderAttractionOptions(trip.destination);
-  document.querySelectorAll("[name='places']").forEach((checkbox) => {
-    checkbox.checked = trip.selectedPlaces.includes(checkbox.value);
+  document.querySelectorAll("[name='budgetStyle']").forEach((input) => {
+    input.checked = input.value === (trip.budgetStyle || "Comfort");
   });
 
   document.querySelector("#planner").scrollIntoView({ behavior: "smooth" });

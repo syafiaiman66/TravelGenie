@@ -105,7 +105,7 @@
         <div class="section-heading">
           <p class="eyebrow">Trip Generator</p>
           <h2 id="planner-title">Create your itinerary</h2>
-          <p>Choose your destination, budget, travel style, and places you already care about.</p>
+          <p>Tell Gemini where you want to go, your budget style, and any places you want included.</p>
         </div>
 
         <div class="planner-layout">
@@ -154,11 +154,24 @@
               <label><input type="checkbox" name="interests" value="Nightlife" /> Nightlife</label>
             </fieldset>
 
-            <fieldset class="choice-group attractions">
-              <legend>Preferred Places</legend>
-              <div id="attraction-options"></div>
-              <button class="text-button" id="recommend-button" type="button">Use AI recommendations</button>
+            <fieldset class="choice-group budget-style-group">
+              <legend>Budget Style</legend>
+              <label><input type="radio" name="budgetStyle" value="Student" checked /> Student</label>
+              <label><input type="radio" name="budgetStyle" value="Comfort" /> Comfort</label>
+              <label><input type="radio" name="budgetStyle" value="Luxury" /> Luxury</label>
+              <label><input type="radio" name="budgetStyle" value="Backpacker" /> Backpacker</label>
+              <label><input type="radio" name="budgetStyle" value="Family comfort" /> Family comfort</label>
             </fieldset>
+
+            <div class="field places-field">
+              <label for="custom-places">Places You Want To Visit</label>
+              <textarea
+                id="custom-places"
+                name="customPlaces"
+                rows="4"
+                placeholder="Example: Tokyo Tower, Shibuya Crossing, Sensoji Temple, hidden ramen spots, day trip to Mount Fuji"
+              ></textarea>
+            </div>
 
             <div class="form-actions">
               <button class="primary-button" type="submit">Generate Itinerary</button>

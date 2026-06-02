@@ -20,6 +20,10 @@ services:
         sync: false
       - key: GOOGLE_REDIRECT_URI
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
 
 databases:
   - name: travelgenie-db
