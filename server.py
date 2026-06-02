@@ -125,46 +125,54 @@ class GeminiGenerationError(Exception):
 
 
 ITINERARY_RESPONSE_SCHEMA = {
-    "type": "OBJECT",
+    "type": "object",
+    "description": "A complete multi-day travel itinerary for the requested trip.",
     "properties": {
-        "destination": {"type": "STRING"},
-        "country": {"type": "STRING"},
-        "summary": {"type": "STRING"},
-        "transport": {"type": "STRING"},
-        "food": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "destination": {"type": "string", "description": "Destination city, town, island, or region."},
+        "country": {"type": "string", "description": "Country where the destination is located."},
+        "summary": {"type": "string", "description": "One concise overview of the trip plan."},
+        "transport": {"type": "string", "description": "Practical transport guidance as one readable paragraph."},
+        "food": {
+            "type": "array",
+            "description": "Three local food recommendations as plain strings.",
+            "items": {"type": "string"},
+        },
         "breakdown": {
-            "type": "ARRAY",
+            "type": "array",
+            "description": "Budget categories as an array, never an object/map.",
             "items": {
-                "type": "OBJECT",
+                "type": "object",
                 "properties": {
-                    "label": {"type": "STRING"},
-                    "percent": {"type": "NUMBER"},
-                    "amount": {"type": "NUMBER"},
+                    "label": {"type": "string", "description": "One of Accommodation, Food, Transportation, Activities, Buffer."},
+                    "percent": {"type": "number", "description": "Percentage of the total budget."},
+                    "amount": {"type": "number", "description": "Budget amount in the requested currency."},
                 },
                 "required": ["label", "percent", "amount"],
                 "propertyOrdering": ["label", "percent", "amount"],
             },
         },
         "schedule": {
-            "type": "ARRAY",
+            "type": "array",
+            "description": "One object per trip day. The array length must equal the requested days.",
             "items": {
-                "type": "OBJECT",
+                "type": "object",
                 "properties": {
-                    "day": {"type": "INTEGER"},
-                    "title": {"type": "STRING"},
+                    "day": {"type": "integer", "description": "Day number starting at 1."},
+                    "title": {"type": "string", "description": "Unique theme for this day."},
                     "items": {
-                        "type": "ARRAY",
+                        "type": "array",
+                        "description": "Exactly four varied activity objects for this day.",
                         "items": {
-                            "type": "OBJECT",
+                            "type": "object",
                             "properties": {
-                                "time": {"type": "STRING"},
-                                "title": {"type": "STRING"},
-                                "notes": {"type": "STRING"},
+                                "time": {"type": "string", "description": "Specific time like 08:30, 10:30, 14:00, 19:30."},
+                                "title": {"type": "string", "description": "Specific activity or place name."},
+                                "notes": {"type": "string", "description": "One practical activity description."},
                                 "cost": {
-                                    "type": "OBJECT",
+                                    "type": "object",
                                     "properties": {
-                                        "raw": {"type": "NUMBER"},
-                                        "label": {"type": "STRING"},
+                                        "raw": {"type": "number", "description": "Estimated activity cost in requested currency."},
+                                        "label": {"type": "string", "description": "Formatted cost using the requested currency symbol or code."},
                                     },
                                     "required": ["raw", "label"],
                                     "propertyOrdering": ["raw", "label"],
@@ -175,10 +183,10 @@ ITINERARY_RESPONSE_SCHEMA = {
                         },
                     },
                     "total": {
-                        "type": "OBJECT",
+                        "type": "object",
                         "properties": {
-                            "raw": {"type": "NUMBER"},
-                            "label": {"type": "STRING"},
+                            "raw": {"type": "number", "description": "Total estimated cost for this day."},
+                            "label": {"type": "string", "description": "Formatted total in requested currency."},
                         },
                         "required": ["raw", "label"],
                         "propertyOrdering": ["raw", "label"],
@@ -481,7 +489,7 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
             "maxOutputTokens": 8192,
         }
         if use_schema:
-            generation_config["responseSchema"] = ITINERARY_RESPONSE_SCHEMA
+            generation_config["responseJsonSchema"] = ITINERARY_RESPONSE_SCHEMA
 
         request_payload = {
             "contents": [
@@ -561,26 +569,43 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
         }
 
         return f"""
-Create a travel itinerary JSON object.
+You are TravelGenie. Generate one complete travel itinerary that matches the provided JSON schema.
 
-INPUT:
+TRIP_PARAMETERS:
 {json.dumps(prompt_payload, ensure_ascii=False)}
 
-STRICT OUTPUT RULES:
-- Output only one valid JSON object, no markdown, no commentary.
-- Use exactly these top-level keys: destination, country, summary, transport, food, breakdown, schedule.
-- schedule must contain exactly INPUT.days objects.
-- Each day must contain exactly 4 varied items: breakfast/arrival, morning, afternoon, evening.
-- Each item must have a specific time, activity title, practical description in notes, and estimated cost.
-- Do not repeat the same item title on different days.
-- Use real place names and route nearby places together.
-- Keep notes between 8 and 18 words.
-- Never output an empty items array.
+OUTPUT_CONTRACT:
+Return exactly one JSON object with these top-level keys only:
+destination, country, summary, transport, food, breakdown, schedule.
+
+FIELD_RULES:
+- destination: string. Use the normalized destination name.
+- country: string. Use the destination country.
+- summary: string. One useful trip overview, maximum 25 words.
+- transport: string. One practical paragraph, maximum 45 words. Do not return an object.
+- food: array of exactly 3 strings. Local food or restaurant-style recommendations.
+- breakdown: array of exactly 5 objects. Never return an object/map.
+- breakdown labels must be exactly: Accommodation, Food, Transportation, Activities, Buffer.
+- schedule: array with exactly TRIP_PARAMETERS.days day objects.
+- Each day object must have day, title, items, total.
+- Each day items array must contain exactly 4 activity objects.
+- The 4 activity objects must represent breakfast/arrival, morning, afternoon, evening.
+- Every activity must have time, title, notes, cost.
+- time must be specific, for example 08:30, 10:30, 14:00, 19:30.
+- title must name a real place, meal, route, or activity.
+- notes must describe what the traveler does, 8 to 18 words.
+- cost.raw must be a number in TRIP_PARAMETERS.currency.
+- cost.label and total.label must include TRIP_PARAMETERS.currency or its symbol.
+- total.raw must equal the sum of that day's item cost.raw values.
+
+QUALITY_RULES:
+- Create varied activities across days. Do not repeat activity titles.
+- Route nearby places together in the same day.
+- Include requested places when realistic: TRIP_PARAMETERS.placesUserWants.
+- Match budgetStyle: Student/Backpacker cheap, Comfort balanced, Luxury premium.
 - Use cost.raw 0 only for genuinely free activities.
-- Put all costs in INPUT.currency. cost.raw and total.raw must be numbers.
-- breakdown must contain exactly: Accommodation, Food, Transportation, Activities, Buffer.
-- The requested places must appear in schedule when realistic.
-- Budget style controls choices: Student/Backpacker cheap, Comfort balanced, Luxury premium.
+- Do not output empty arrays.
+- Do not output markdown, comments, explanations, or text before/after JSON.
 """.strip()
 
     def upsert_user(self, userinfo):
