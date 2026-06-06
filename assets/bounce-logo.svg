@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title>Bounce logo</title>
+  <defs>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#c97513" stroke-width="2" opacity="0.42"/>
+    </pattern>
+    <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#a85e10" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="0" fill="#e88c18"/>
+  <rect width="512" height="512" fill="url(#grid)"/>
+  <g filter="url(#soft-shadow)">
+    <path fill="#fff" d="M126 169c-18-10-18-36 0-46l90-52c25-15 56-15 81 0l90 52c18 10 18 36 0 46l-100 58c-19 11-43 11-62 0L126 169Z"/>
+    <path fill="#fff" d="M68 193c0-24 26-39 47-27l113 66c9 5 15 15 15 26v189c0 24-26 39-47 27L83 408c-9-5-15-15-15-26V193Z"/>
+    <path fill="#fff" d="M444 193c0-24-26-39-47-27l-113 66c-9 5-15 15-15 26v189c0 24 26 39 47 27l113-66c9-5 15-15 15-26V193Z"/>
+  </g>
+  <path d="M256 130v188" fill="none" stroke="#e88c18" stroke-width="28" stroke-linecap="round"/>
+  <path d="M256 276 161 333" fill="none" stroke="#e88c18" stroke-width="24" stroke-linecap="round"/>
+  <path d="M256 276 351 333" fill="none" stroke="#e88c18" stroke-width="24" stroke-linecap="round"/>
+</svg>

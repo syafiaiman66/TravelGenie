@@ -3,19 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TravelGenie | AI Travel Itinerary Planner</title>
+    <title>Bounce | AI Travel Itinerary Planner</title>
     <meta
       name="description"
-      content="TravelGenie creates personalized travel itineraries with schedules, attractions, food ideas, transportation tips, and budget breakdowns."
+      content="Bounce creates personalized travel itineraries with schedules, attractions, food ideas, transportation tips, and budget breakdowns."
     />
     <link rel="preconnect" href="https://images.unsplash.com" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="#home" aria-label="TravelGenie home">
-        <span class="brand-mark">TG</span>
-        <span>TravelGenie</span>
+      <a class="brand" href="#home" aria-label="Bounce home">
+        <img class="brand-logo" src="assets/bounce-logo.svg" alt="" />
+        <span>Bounce</span>
       </a>
 
       <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false">
@@ -29,6 +29,7 @@
         <a href="#saved">Saved Trips</a>
         <a href="#features">Features</a>
         <a href="#admin">Admin</a>
+        <a href="#feedback">Feedback</a>
         <button class="nav-logout" type="button" id="nav-logout-button">Log out</button>
       </nav>
 
@@ -44,24 +45,24 @@
         <div class="hero-media" role="img" aria-label="Travelers overlooking Tokyo at sunset"></div>
         <div class="hero-overlay"></div>
         <div class="hero-content">
-          <p class="eyebrow">AI itinerary planning in seconds</p>
-          <h1>TravelGenie</h1>
+          <p class="eyebrow">AI trip planning with Gemini</p>
+          <h1>Bounce</h1>
           <p class="hero-copy">
-            Build a day-by-day travel plan with attractions, food, transport, and budget allocation
+            Build a day-by-day travel plan with activities, food, transport, and budget allocation
             for your destination.
           </p>
           <form class="hero-search auth-required" data-jump-planner>
             <label class="sr-only" for="hero-destination">Search a destination</label>
-            <input id="hero-destination" type="search" placeholder="Try Tokyo, Paris, Cairo, Rio..." autocomplete="off" />
+            <input id="hero-destination" type="search" placeholder="Try Tokyo, Seoul, Maldives..." autocomplete="off" />
             <button class="primary-button" type="submit">Plan Trip</button>
           </form>
           <div class="locked-hero guest-only">
             <button class="primary-button" type="button" data-auth-open="login">Log in to start planning</button>
             <button class="secondary-button" type="button" data-auth-open="register">Create account</button>
           </div>
-          <div class="hero-stats auth-required" aria-label="TravelGenie highlights">
+          <div class="hero-stats auth-required" aria-label="Bounce highlights">
             <span><strong>15</strong> currencies</span>
-            <span><strong>5 sec</strong> itinerary target</span>
+            <span><strong>Gemini</strong> powered</span>
             <span><strong>24/7</strong> trip access</span>
           </div>
         </div>
@@ -113,7 +114,7 @@
             <div class="form-grid">
               <div class="field with-suggestions">
                 <label for="destination">Destination</label>
-                <input id="destination" name="destination" type="text" placeholder="Tokyo" autocomplete="off" required />
+              <input id="destination" name="destination" type="text" placeholder="Tokyo" autocomplete="off" required />
                 <div class="suggestion-list" id="destination-suggestions" role="listbox"></div>
                 <p class="field-message" id="destination-message" aria-live="polite"></p>
               </div>
@@ -130,12 +131,12 @@
 
               <div class="field">
                 <label for="travelers">Travelers</label>
-                <input id="travelers" name="travelers" type="number" min="1" max="20" value="2" required />
+                <input id="travelers" name="travelers" type="number" min="1" max="20" value="3" required />
               </div>
 
               <div class="field">
                 <label for="days">Trip Duration</label>
-                <input id="days" name="days" type="number" min="1" max="14" value="7" required />
+                <input id="days" name="days" type="number" min="1" max="14" value="3" required />
               </div>
 
               <div class="field">
@@ -228,7 +229,7 @@
       <section class="features-section auth-required" id="features" aria-labelledby="features-title">
         <div class="section-heading">
           <p class="eyebrow">Platform Features</p>
-          <h2 id="features-title">Everything from the PRD, shaped into a website</h2>
+          <h2 id="features-title">A practical AI planner for real trips</h2>
         </div>
         <div class="feature-grid">
           <article>
@@ -236,8 +237,8 @@
               src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80"
               alt="Historic street with travelers walking"
             />
-            <h3>Smart Suggestions</h3>
-            <p>Destination and attraction suggestions appear as users type, with graceful unavailable-state messaging.</p>
+            <h3>Gemini Trip Planning</h3>
+            <p>Type any destination and must-visit places, then Bounce asks Gemini to build the itinerary directly.</p>
           </article>
           <article>
             <img
@@ -261,26 +262,51 @@
       <section class="admin-section auth-required" id="admin" aria-labelledby="admin-title">
         <div>
           <p class="eyebrow">Admin Preview</p>
-          <h2 id="admin-title">Manage travel data</h2>
+          <h2 id="admin-title">Manage travel tools</h2>
           <p>
-            A lightweight admin view shows the future management surfaces for users, destinations,
-            attractions, currencies, and analytics.
+            A lightweight admin view shows the future management surfaces for users, prompts,
+            currencies, and analytics.
           </p>
         </div>
         <div class="admin-grid">
           <article><strong id="admin-users">1,248</strong><span>Users</span></article>
-          <article><strong id="admin-destinations">8</strong><span>Destinations</span></article>
-          <article><strong id="admin-attractions">54</strong><span>Attractions</span></article>
+          <article><strong id="admin-destinations">Gemini</strong><span>Planner</span></article>
+          <article><strong id="admin-attractions">Live</strong><span>AI Routes</span></article>
           <article><strong>15</strong><span>Currencies</span></article>
         </div>
+      </section>
+
+      <section class="feedback-section auth-required" id="feedback" aria-labelledby="feedback-title">
+        <div class="section-heading">
+          <p class="eyebrow">Customer Feedback</p>
+          <h2 id="feedback-title">Tell us what went wrong</h2>
+          <p>
+            Share any inconvenience, bug, confusing part, or suggestion. Your message is sent directly to Bounce support.
+          </p>
+        </div>
+        <form class="feedback-form" id="feedback-form">
+          <label for="feedback-message">Your feedback</label>
+          <textarea
+            id="feedback-message"
+            name="message"
+            rows="7"
+            maxlength="4000"
+            placeholder="Write anything you want Bounce to improve..."
+            required
+          ></textarea>
+          <p class="field-message">Press Ctrl + Enter to send faster.</p>
+          <div class="feedback-actions">
+            <button class="primary-button" type="submit">Send Feedback</button>
+          </div>
+        </form>
       </section>
     </main>
 
     <footer class="site-footer">
       <div>
         <a class="brand" href="#home">
-          <span class="brand-mark">TG</span>
-          <span>TravelGenie</span>
+          <img class="brand-logo" src="assets/bounce-logo.svg" alt="" />
+          <span>Bounce</span>
         </a>
         <p>AI-powered itinerary planning for fast, practical, personalized trips.</p>
       </div>
@@ -289,6 +315,7 @@
         <a class="auth-required" href="#saved">History</a>
         <a class="auth-required" href="#features">Features</a>
         <a class="auth-required" href="#admin">Admin</a>
+        <a class="auth-required" href="#feedback">Feedback</a>
       </div>
     </footer>
 
@@ -331,6 +358,6 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="app.js?v=20260602-gemini-fix"></script>
+    <script src="app.js?v=20260607-duration-default"></script>
   </body>
 </html>

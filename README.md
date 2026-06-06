@@ -1,6 +1,6 @@
-# TravelGenie
+# Bounce
 
-TravelGenie is a travel itinerary planning prototype with server-side Google OAuth 2.0 sign-in and Gemini itinerary generation.
+Bounce is a travel itinerary planning prototype with server-side Google OAuth 2.0 sign-in and Gemini itinerary generation.
 It uses SQLite locally and Render Postgres when `DATABASE_URL` is available in production.
 
 ## Run Locally
@@ -21,7 +21,7 @@ It uses SQLite locally and Render Postgres when `DATABASE_URL` is available in p
 
    `http://127.0.0.1:8000/`
 
-The app stores verified Google users and sessions in `travelgenie.sqlite3` when running locally. On Render, it stores them in Render Postgres. Google client secrets stay on the server and are never exposed to browser JavaScript.
+The app stores verified Google users and sessions in the existing `travelgenie.sqlite3` file when running locally. On Render, it stores them in Render Postgres. Google client secrets stay on the server and are never exposed to browser JavaScript.
 
 ## Deploy On Render
 
@@ -36,6 +36,12 @@ Add these environment variables in Render:
 - `GOOGLE_REDIRECT_URI`
 - `GEMINI_API_KEY`
 - `GEMINI_MODEL=gemini-2.5-flash`
+- `FEEDBACK_TO=bouncebtoe@gmail.com`
+- `SMTP_HOST=smtp.gmail.com`
+- `SMTP_PORT=587`
+- `SMTP_USERNAME=your sender email`
+- `SMTP_PASSWORD=your sender email app password`
+- `SMTP_FROM=your sender email`
 - `COOKIE_SECURE=true`
 - `HOST=0.0.0.0`
 

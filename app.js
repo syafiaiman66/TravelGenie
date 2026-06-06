@@ -1,514 +1,8 @@
-const currencies = {
-  MYR: 4.72,
-  KRW: 1375,
-  USD: 1,
-  SGD: 1.35,
-  JPY: 157,
-  EUR: 0.92,
-  GBP: 0.78,
-  AUD: 1.5,
-  CAD: 1.37,
-  THB: 36.7,
-  IDR: 16200,
-  PHP: 58.6,
-  VND: 25400,
-  CNY: 7.24,
-  INR: 83.4
-};
+const currencies = ["MYR", "KRW", "USD", "SGD", "JPY", "EUR", "GBP", "AUD", "CAD", "THB", "IDR", "PHP", "VND", "CNY", "INR"];
 
-const currencySymbols = {
-  MYR: "RM",
-  KRW: "₩",
-  USD: "$",
-  SGD: "S$",
-  JPY: "¥",
-  EUR: "€",
-  GBP: "£",
-  AUD: "A$",
-  CAD: "C$",
-  THB: "฿",
-  IDR: "Rp",
-  PHP: "₱",
-  VND: "₫",
-  CNY: "¥",
-  INR: "₹"
-};
-
-const destinationData = {
-  Tokyo: {
-    country: "Japan",
-    transport: "Use the JR Yamanote Line, Tokyo Metro day passes, and IC cards for quick transfers.",
-    food: ["Tsukiji Market sushi", "Shinjuku ramen", "Harajuku crepes", "Izakaya dinner"],
-    attractions: [
-      { name: "Tokyo Tower", category: "Culture", cost: 22 },
-      { name: "Shibuya Crossing", category: "Shopping", cost: 10 },
-      { name: "Sensoji Temple", category: "Culture", cost: 8 },
-      { name: "Tokyo Skytree", category: "Culture", cost: 28 },
-      { name: "Akihabara", category: "Shopping", cost: 18 },
-      { name: "Ueno Park", category: "Nature", cost: 12 },
-      { name: "Meiji Shrine", category: "Nature", cost: 8 },
-      { name: "TeamLab Planets", category: "Family", cost: 32 },
-      { name: "Golden Gai", category: "Nightlife", cost: 35 }
-    ]
-  },
-  Osaka: {
-    country: "Japan",
-    transport: "Base yourself near Namba or Umeda and use Osaka Metro with short train hops to Kyoto or Nara.",
-    food: ["Dotonbori takoyaki", "Okonomiyaki dinner", "Kuromon Market snacks", "Kushikatsu"],
-    attractions: [
-      { name: "Osaka Castle", category: "Culture", cost: 12 },
-      { name: "Dotonbori", category: "Food", cost: 20 },
-      { name: "Osaka Aquarium", category: "Family", cost: 25 },
-      { name: "Shinsekai", category: "Food", cost: 18 },
-      { name: "Universal Studios Japan", category: "Family", cost: 85 },
-      { name: "Namba Parks", category: "Shopping", cost: 15 },
-      { name: "Minoo Park", category: "Nature", cost: 10 }
-    ]
-  },
-  Seoul: {
-    country: "South Korea",
-    transport: "Use T-money cards, subway line transfers, and taxis after late-night meals.",
-    food: ["Gwangjang Market", "Hongdae barbecue", "Myeongdong street food", "Cafe hopping"],
-    attractions: [
-      { name: "Gyeongbokgung Palace", category: "Culture", cost: 10 },
-      { name: "Bukchon Hanok Village", category: "Culture", cost: 6 },
-      { name: "N Seoul Tower", category: "Nature", cost: 22 },
-      { name: "Myeongdong", category: "Shopping", cost: 25 },
-      { name: "Hongdae", category: "Nightlife", cost: 35 },
-      { name: "Lotte World", category: "Family", cost: 62 },
-      { name: "Hangang Park", category: "Nature", cost: 12 }
-    ]
-  },
-  Bali: {
-    country: "Indonesia",
-    transport: "Hire a private driver for full-day routes and use scooters only where traffic feels comfortable.",
-    food: ["Nasi campur", "Jimbaran seafood", "Ubud cafes", "Warung lunch"],
-    attractions: [
-      { name: "Ubud Rice Terraces", category: "Nature", cost: 14 },
-      { name: "Uluwatu Temple", category: "Culture", cost: 12 },
-      { name: "Seminyak Beach", category: "Nature", cost: 18 },
-      { name: "Tegenungan Waterfall", category: "Nature", cost: 10 },
-      { name: "Ubud Art Market", category: "Shopping", cost: 20 },
-      { name: "Mount Batur Sunrise", category: "Nature", cost: 45 },
-      { name: "Canggu Cafes", category: "Food", cost: 22 }
-    ]
-  },
-  Bangkok: {
-    country: "Thailand",
-    transport: "Combine BTS Skytrain, river boats, and ride-hailing for markets and temple districts.",
-    food: ["Boat noodles", "Yaowarat seafood", "Pad thai", "Mango sticky rice"],
-    attractions: [
-      { name: "Grand Palace", category: "Culture", cost: 18 },
-      { name: "Wat Arun", category: "Culture", cost: 8 },
-      { name: "Chatuchak Market", category: "Shopping", cost: 25 },
-      { name: "Chao Phraya River", category: "Nature", cost: 12 },
-      { name: "Siam Paragon", category: "Shopping", cost: 20 },
-      { name: "Khao San Road", category: "Nightlife", cost: 30 },
-      { name: "Lumphini Park", category: "Nature", cost: 7 }
-    ]
-  },
-  Paris: {
-    country: "France",
-    transport: "Use Metro carnet passes, walk central neighborhoods, and reserve longer museum visits in advance.",
-    food: ["Croissant breakfast", "Bistro lunch", "Marais falafel", "Seine picnic"],
-    attractions: [
-      { name: "Eiffel Tower", category: "Culture", cost: 35 },
-      { name: "Louvre Museum", category: "Culture", cost: 25 },
-      { name: "Montmartre", category: "Culture", cost: 12 },
-      { name: "Seine River Cruise", category: "Nature", cost: 22 },
-      { name: "Le Marais", category: "Shopping", cost: 18 },
-      { name: "Versailles", category: "Culture", cost: 42 },
-      { name: "Latin Quarter", category: "Food", cost: 25 }
-    ]
-  },
-  Singapore: {
-    country: "Singapore",
-    transport: "Use MRT and buses with contactless payment; rides are short and predictable.",
-    food: ["Maxwell Food Centre", "Laksa", "Chilli crab", "Kaya toast"],
-    attractions: [
-      { name: "Gardens by the Bay", category: "Nature", cost: 28 },
-      { name: "Marina Bay Sands", category: "Shopping", cost: 25 },
-      { name: "Sentosa Island", category: "Family", cost: 55 },
-      { name: "Chinatown", category: "Food", cost: 18 },
-      { name: "Singapore Zoo", category: "Family", cost: 38 },
-      { name: "Little India", category: "Culture", cost: 12 },
-      { name: "Jewel Changi", category: "Shopping", cost: 15 }
-    ]
-  },
-  "New York": {
-    country: "United States",
-    transport: "Use OMNY for subway and buses, walk neighborhood clusters, and avoid peak taxi times.",
-    food: ["Bagels", "Pizza slice", "Chelsea Market", "Koreatown dinner"],
-    attractions: [
-      { name: "Central Park", category: "Nature", cost: 10 },
-      { name: "Statue of Liberty", category: "Culture", cost: 30 },
-      { name: "Times Square", category: "Shopping", cost: 12 },
-      { name: "Met Museum", category: "Culture", cost: 30 },
-      { name: "Brooklyn Bridge", category: "Nature", cost: 8 },
-      { name: "Broadway Show", category: "Nightlife", cost: 110 },
-      { name: "SoHo", category: "Shopping", cost: 35 }
-    ]
-  },
-  London: {
-    country: "United Kingdom",
-    transport: "Use the Tube with contactless payment, walk central sights, and book airport rail early.",
-    food: ["Borough Market", "Sunday roast", "Afternoon tea", "Brick Lane curry"],
-    attractions: [
-      { name: "Tower Bridge", category: "Culture", cost: 15 },
-      { name: "British Museum", category: "Culture", cost: 10 },
-      { name: "London Eye", category: "Family", cost: 38 },
-      { name: "Camden Market", category: "Shopping", cost: 22 },
-      { name: "Hyde Park", category: "Nature", cost: 8 },
-      { name: "West End Show", category: "Nightlife", cost: 95 },
-      { name: "Buckingham Palace", category: "Culture", cost: 18 }
-    ]
-  },
-  Rome: {
-    country: "Italy",
-    transport: "Walk historic districts, use metro for longer hops, and reserve major ruins ahead.",
-    food: ["Carbonara", "Roman pizza", "Gelato", "Trastevere trattoria"],
-    attractions: [
-      { name: "Colosseum", category: "Culture", cost: 28 },
-      { name: "Vatican Museums", category: "Culture", cost: 35 },
-      { name: "Trevi Fountain", category: "Culture", cost: 8 },
-      { name: "Trastevere", category: "Food", cost: 24 },
-      { name: "Villa Borghese", category: "Nature", cost: 12 },
-      { name: "Campo de Fiori", category: "Shopping", cost: 18 }
-    ]
-  },
-  Barcelona: {
-    country: "Spain",
-    transport: "Use metro T-casual tickets, walk Gothic Quarter routes, and prebook Gaudi sights.",
-    food: ["Tapas", "Paella", "La Boqueria snacks", "Churros"],
-    attractions: [
-      { name: "Sagrada Familia", category: "Culture", cost: 32 },
-      { name: "Park Guell", category: "Nature", cost: 18 },
-      { name: "Gothic Quarter", category: "Culture", cost: 10 },
-      { name: "La Boqueria", category: "Food", cost: 22 },
-      { name: "Barceloneta Beach", category: "Nature", cost: 12 },
-      { name: "Passeig de Gracia", category: "Shopping", cost: 24 }
-    ]
-  },
-  Amsterdam: {
-    country: "Netherlands",
-    transport: "Use trams, ferries, and bikes where comfortable; reserve museums before arrival.",
-    food: ["Stroopwafels", "Dutch pancakes", "Foodhallen", "Canal-side cafes"],
-    attractions: [
-      { name: "Rijksmuseum", category: "Culture", cost: 25 },
-      { name: "Van Gogh Museum", category: "Culture", cost: 27 },
-      { name: "Canal Cruise", category: "Nature", cost: 20 },
-      { name: "Jordaan", category: "Food", cost: 18 },
-      { name: "Vondelpark", category: "Nature", cost: 8 },
-      { name: "Nine Streets", category: "Shopping", cost: 20 }
-    ]
-  },
-  Istanbul: {
-    country: "Turkey",
-    transport: "Use Istanbulkart for trams, ferries, metro, and buses across both continents.",
-    food: ["Turkish breakfast", "Kebabs", "Baklava", "Balik ekmek"],
-    attractions: [
-      { name: "Hagia Sophia", category: "Culture", cost: 18 },
-      { name: "Blue Mosque", category: "Culture", cost: 8 },
-      { name: "Grand Bazaar", category: "Shopping", cost: 24 },
-      { name: "Bosphorus Cruise", category: "Nature", cost: 22 },
-      { name: "Galata Tower", category: "Culture", cost: 20 },
-      { name: "Karakoy", category: "Food", cost: 20 }
-    ]
-  },
-  Dubai: {
-    country: "United Arab Emirates",
-    transport: "Use metro for the main corridor, taxis for beach districts, and booked transfers for desert trips.",
-    food: ["Arabic mezze", "Shawarma", "Emirati machboos", "Marina dining"],
-    attractions: [
-      { name: "Burj Khalifa", category: "Culture", cost: 55 },
-      { name: "Dubai Mall", category: "Shopping", cost: 30 },
-      { name: "Desert Safari", category: "Nature", cost: 75 },
-      { name: "Dubai Marina", category: "Nightlife", cost: 35 },
-      { name: "Museum of the Future", category: "Family", cost: 42 },
-      { name: "Jumeirah Beach", category: "Nature", cost: 14 }
-    ]
-  },
-  Cairo: {
-    country: "Egypt",
-    transport: "Hire licensed drivers for pyramid days and use ride-hailing for museum and Nile routes.",
-    food: ["Koshari", "Ful medames", "Grilled kofta", "Nile dinner"],
-    attractions: [
-      { name: "Giza Pyramids", category: "Culture", cost: 30 },
-      { name: "Egyptian Museum", category: "Culture", cost: 18 },
-      { name: "Khan el-Khalili", category: "Shopping", cost: 16 },
-      { name: "Nile Felucca", category: "Nature", cost: 20 },
-      { name: "Coptic Cairo", category: "Culture", cost: 10 },
-      { name: "Al-Azhar Park", category: "Nature", cost: 8 }
-    ]
-  },
-  "Cape Town": {
-    country: "South Africa",
-    transport: "Use ride-hailing in the city and book day tours for wine country or peninsula routes.",
-    food: ["Cape Malay curry", "Seafood", "Wine estate lunch", "Braaied meats"],
-    attractions: [
-      { name: "Table Mountain", category: "Nature", cost: 35 },
-      { name: "V&A Waterfront", category: "Shopping", cost: 22 },
-      { name: "Robben Island", category: "Culture", cost: 32 },
-      { name: "Boulders Beach", category: "Nature", cost: 14 },
-      { name: "Bo-Kaap", category: "Culture", cost: 10 },
-      { name: "Kirstenbosch Garden", category: "Nature", cost: 16 }
-    ]
-  },
-  Marrakech: {
-    country: "Morocco",
-    transport: "Walk medina routes with offline maps and use private drivers for desert or Atlas day trips.",
-    food: ["Tagine", "Mint tea", "Couscous", "Jemaa el-Fnaa snacks"],
-    attractions: [
-      { name: "Jemaa el-Fnaa", category: "Culture", cost: 18 },
-      { name: "Majorelle Garden", category: "Nature", cost: 16 },
-      { name: "Bahia Palace", category: "Culture", cost: 12 },
-      { name: "Souks of Marrakech", category: "Shopping", cost: 24 },
-      { name: "Atlas Mountains", category: "Nature", cost: 55 },
-      { name: "Medina Food Tour", category: "Food", cost: 38 }
-    ]
-  },
-  Sydney: {
-    country: "Australia",
-    transport: "Use Opal/contactless cards for ferries, trains, and buses; ferry rides are part of the experience.",
-    food: ["Flat white cafes", "Fish and chips", "Thai town dinner", "Brunch"],
-    attractions: [
-      { name: "Sydney Opera House", category: "Culture", cost: 38 },
-      { name: "Harbour Bridge", category: "Nature", cost: 20 },
-      { name: "Bondi Beach", category: "Nature", cost: 12 },
-      { name: "Taronga Zoo", category: "Family", cost: 48 },
-      { name: "The Rocks", category: "Food", cost: 24 },
-      { name: "Queen Victoria Building", category: "Shopping", cost: 18 }
-    ]
-  },
-  Queenstown: {
-    country: "New Zealand",
-    transport: "Book shuttles for adventure activities and consider a rental car for lake and mountain routes.",
-    food: ["Fergburger", "Lakefront cafes", "Pinot noir tasting", "Bakery breakfast"],
-    attractions: [
-      { name: "Lake Wakatipu", category: "Nature", cost: 10 },
-      { name: "Skyline Gondola", category: "Family", cost: 42 },
-      { name: "Milford Sound", category: "Nature", cost: 120 },
-      { name: "Arrowtown", category: "Culture", cost: 16 },
-      { name: "Shotover Jet", category: "Family", cost: 95 },
-      { name: "Queenstown Gardens", category: "Nature", cost: 8 }
-    ]
-  },
-  "Rio de Janeiro": {
-    country: "Brazil",
-    transport: "Use metro for beach zones, ride-hailing at night, and guided transfers for hilltop sights.",
-    food: ["Feijoada", "Acai bowls", "Churrasco", "Beach kiosks"],
-    attractions: [
-      { name: "Christ the Redeemer", category: "Culture", cost: 32 },
-      { name: "Sugarloaf Mountain", category: "Nature", cost: 34 },
-      { name: "Copacabana Beach", category: "Nature", cost: 14 },
-      { name: "Ipanema", category: "Shopping", cost: 20 },
-      { name: "Lapa", category: "Nightlife", cost: 28 },
-      { name: "Selaron Steps", category: "Culture", cost: 10 }
-    ]
-  },
-  "Mexico City": {
-    country: "Mexico",
-    transport: "Use ride-hailing for long hops, Metrobus in central corridors, and guided trips to ruins.",
-    food: ["Tacos al pastor", "Churros", "Roma Norte cafes", "Mole"],
-    attractions: [
-      { name: "Frida Kahlo Museum", category: "Culture", cost: 18 },
-      { name: "Chapultepec Park", category: "Nature", cost: 10 },
-      { name: "Teotihuacan", category: "Culture", cost: 48 },
-      { name: "Zocalo", category: "Culture", cost: 8 },
-      { name: "Roma Norte", category: "Food", cost: 25 },
-      { name: "La Ciudadela Market", category: "Shopping", cost: 18 }
-    ]
-  },
-  Vancouver: {
-    country: "Canada",
-    transport: "Use SkyTrain and buses, with ferry or shuttle add-ons for mountain and island days.",
-    food: ["Sushi", "Granville Island bites", "Poutine", "Coffee roasters"],
-    attractions: [
-      { name: "Stanley Park", category: "Nature", cost: 12 },
-      { name: "Granville Island", category: "Food", cost: 24 },
-      { name: "Capilano Suspension Bridge", category: "Nature", cost: 58 },
-      { name: "Gastown", category: "Culture", cost: 12 },
-      { name: "Grouse Mountain", category: "Family", cost: 65 },
-      { name: "Robson Street", category: "Shopping", cost: 20 }
-    ]
-  },
-  "Los Angeles": {
-    country: "United States",
-    transport: "Plan routes by neighborhood, use ride-hailing selectively, and allow time for traffic.",
-    food: ["Tacos", "Koreatown barbecue", "Santa Monica seafood", "Food trucks"],
-    attractions: [
-      { name: "Griffith Observatory", category: "Nature", cost: 12 },
-      { name: "Hollywood Walk of Fame", category: "Culture", cost: 10 },
-      { name: "Santa Monica Pier", category: "Family", cost: 24 },
-      { name: "Getty Center", category: "Culture", cost: 15 },
-      { name: "Rodeo Drive", category: "Shopping", cost: 28 },
-      { name: "Venice Beach", category: "Nature", cost: 14 }
-    ]
-  },
-  "Buenos Aires": {
-    country: "Argentina",
-    transport: "Use Subte for central routes, taxis at night, and walk compact neighborhoods.",
-    food: ["Steak dinner", "Empanadas", "Dulce de leche", "Cafe notable"],
-    attractions: [
-      { name: "La Boca", category: "Culture", cost: 14 },
-      { name: "Recoleta Cemetery", category: "Culture", cost: 12 },
-      { name: "San Telmo Market", category: "Shopping", cost: 20 },
-      { name: "Palermo Parks", category: "Nature", cost: 10 },
-      { name: "Tango Show", category: "Nightlife", cost: 70 },
-      { name: "Puerto Madero", category: "Food", cost: 26 }
-    ]
-  },
-  Lima: {
-    country: "Peru",
-    transport: "Use ride-hailing between districts and book guided transfers for ruins or coastal trips.",
-    food: ["Ceviche", "Lomo saltado", "Picarones", "Barranco tasting menus"],
-    attractions: [
-      { name: "Miraflores", category: "Nature", cost: 14 },
-      { name: "Larco Museum", category: "Culture", cost: 16 },
-      { name: "Barranco", category: "Food", cost: 24 },
-      { name: "Huaca Pucllana", category: "Culture", cost: 12 },
-      { name: "Larcomar", category: "Shopping", cost: 20 },
-      { name: "Magic Water Circuit", category: "Family", cost: 8 }
-    ]
-  },
-  Santorini: {
-    country: "Greece",
-    transport: "Use buses between villages, book transfers for late nights, and reserve sunset dining early.",
-    food: ["Greek salad", "Seafood", "Fava", "Winery lunch"],
-    attractions: [
-      { name: "Oia Sunset", category: "Nature", cost: 14 },
-      { name: "Fira", category: "Shopping", cost: 20 },
-      { name: "Red Beach", category: "Nature", cost: 12 },
-      { name: "Akrotiri", category: "Culture", cost: 18 },
-      { name: "Caldera Cruise", category: "Family", cost: 75 },
-      { name: "Santorini Winery", category: "Food", cost: 36 }
-    ]
-  },
-  "Kuala Lumpur": {
-    country: "Malaysia",
-    transport: "Use MRT/LRT for city routes and ride-hailing for food districts or late evenings.",
-    food: ["Nasi lemak", "Roti canai", "Jalan Alor snacks", "Banana leaf rice"],
-    attractions: [
-      { name: "Petronas Twin Towers", category: "Culture", cost: 25 },
-      { name: "Batu Caves", category: "Culture", cost: 12 },
-      { name: "Bukit Bintang", category: "Shopping", cost: 22 },
-      { name: "KLCC Park", category: "Nature", cost: 8 },
-      { name: "Jalan Alor", category: "Food", cost: 18 },
-      { name: "Aquaria KLCC", category: "Family", cost: 20 }
-    ]
-  },
-  Hanoi: {
-    country: "Vietnam",
-    transport: "Walk the Old Quarter carefully, use ride-hailing, and book day trips for bay or countryside routes.",
-    food: ["Pho", "Bun cha", "Egg coffee", "Banh mi"],
-    attractions: [
-      { name: "Old Quarter", category: "Culture", cost: 10 },
-      { name: "Hoan Kiem Lake", category: "Nature", cost: 8 },
-      { name: "Temple of Literature", category: "Culture", cost: 8 },
-      { name: "Train Street", category: "Food", cost: 12 },
-      { name: "Dong Xuan Market", category: "Shopping", cost: 16 },
-      { name: "Ha Long Bay Day Trip", category: "Nature", cost: 70 }
-    ]
-  }
-};
-
-function makeDestination(country, landmark, market, nature, dish, city) {
-  return {
-    country,
-    transport: `Use central public transport and walking routes in ${city}; reserve intercity or airport transfers early for smoother travel.`,
-    food: [dish, "Old town cafe stops", "Local market snacks", "Traditional dinner"],
-    attractions: [
-      { name: landmark, category: "Culture", cost: 24 },
-      { name: market, category: "Shopping", cost: 18 },
-      { name: nature, category: "Nature", cost: 16 },
-      { name: `${city} Old Town`, category: "Culture", cost: 12 },
-      { name: `${city} Food Walk`, category: "Food", cost: 28 },
-      { name: `${city} Evening Quarter`, category: "Nightlife", cost: 26 }
-    ]
-  };
-}
-
-const expandedDestinations = [
-  ["Hong Kong", "Hong Kong", "Victoria Peak", "Temple Street Night Market", "Victoria Harbour", "Dim sum"],
-  ["Bandar Seri Begawan", "Brunei", "Omar Ali Saifuddien Mosque", "Gadong Night Market", "Kampong Ayer", "Ambuyat"],
-  ["Phnom Penh", "Cambodia", "Royal Palace", "Central Market", "Mekong Riverside", "Fish amok"],
-  ["Jakarta", "Indonesia", "National Monument", "Grand Indonesia", "Ancol Beach", "Nasi goreng"],
-  ["Vientiane", "Laos", "Pha That Luang", "Talat Sao Market", "Mekong Riverfront", "Laap"],
-  ["Manila", "Philippines", "Intramuros", "Divisoria Market", "Manila Bay", "Adobo"],
-  ["Naypyidaw", "Myanmar", "Uppatasanti Pagoda", "Myoma Market", "Naypyidaw Water Fountain Garden", "Mohinga"],
-  ["Dili", "Timor-Leste", "Cristo Rei of Dili", "Tais Market", "Areia Branca Beach", "Ikan sabuko"],
-  ["Vienna", "Austria", "Schonbrunn Palace", "Naschmarkt", "Stadtpark", "Wiener schnitzel"],
-  ["Tirana", "Albania", "Skanderbeg Square", "New Bazaar", "Grand Park of Tirana", "Byrek"],
-  ["Andorra la Vella", "Andorra", "Casa de la Vall", "Avinguda Meritxell", "Madriu Valley", "Trinxat"],
-  ["Yerevan", "Armenia", "Cascade Complex", "Vernissage Market", "Hrazdan Gorge", "Khorovats"],
-  ["Baku", "Azerbaijan", "Flame Towers", "Nizami Street", "Baku Boulevard", "Plov"],
-  ["Minsk", "Belarus", "Independence Square", "Komarovka Market", "Gorky Park", "Draniki"],
-  ["Brussels", "Belgium", "Grand Place", "Galeries Royales Saint-Hubert", "Parc de Bruxelles", "Belgian waffles"],
-  ["Sarajevo", "Bosnia and Herzegovina", "Bascarsija", "Gazi Husrev-beg Bazaar", "Vrelo Bosne", "Cevapi"],
-  ["Sofia", "Bulgaria", "Alexander Nevsky Cathedral", "Vitosha Boulevard", "Borisova Gradina", "Banitsa"],
-  ["Zagreb", "Croatia", "St Mark's Church", "Dolac Market", "Maksimir Park", "Strukli"],
-  ["Nicosia", "Cyprus", "Ledra Street", "Municipal Market", "Athalassa Park", "Halloumi mezze"],
-  ["Prague", "Czech Republic", "Prague Castle", "Old Town Square", "Letna Park", "Goulash"],
-  ["Copenhagen", "Denmark", "Nyhavn", "Stroget", "Tivoli Gardens", "Smorrebrod"],
-  ["Tallinn", "Estonia", "Toompea Castle", "Balti Jaama Market", "Kadriorg Park", "Black bread tasting"],
-  ["Helsinki", "Finland", "Helsinki Cathedral", "Market Square", "Esplanadi Park", "Salmon soup"],
-  ["Tbilisi", "Georgia", "Narikala Fortress", "Dry Bridge Market", "Mtatsminda Park", "Khachapuri"],
-  ["Berlin", "Germany", "Brandenburg Gate", "Kurfurstendamm", "Tiergarten", "Currywurst"],
-  ["Athens", "Greece", "Acropolis", "Monastiraki Flea Market", "National Garden", "Souvlaki"],
-  ["Budapest", "Hungary", "Buda Castle", "Great Market Hall", "Margaret Island", "Goulash soup"],
-  ["Reykjavik", "Iceland", "Hallgrimskirkja", "Laugavegur", "Sun Voyager Waterfront", "Icelandic lamb"],
-  ["Dublin", "Ireland", "Trinity College", "Grafton Street", "St Stephen's Green", "Irish stew"],
-  ["Pristina", "Kosovo", "Newborn Monument", "Old Bazaar", "Germia Park", "Flija"],
-  ["Riga", "Latvia", "House of the Blackheads", "Central Market", "Bastejkalna Park", "Rye bread snacks"],
-  ["Vaduz", "Liechtenstein", "Vaduz Castle", "Stadtle", "Rhine Valley", "Kasknopfle"],
-  ["Vilnius", "Lithuania", "Gediminas Tower", "Hales Market", "Bernardine Garden", "Cepelinai"],
-  ["Luxembourg City", "Luxembourg", "Bock Casemates", "Place d'Armes", "Petrusse Valley", "Judd mat Gaardebounen"],
-  ["Valletta", "Malta", "St John's Co-Cathedral", "Merchant Street", "Upper Barrakka Gardens", "Pastizzi"],
-  ["Chisinau", "Moldova", "Nativity Cathedral", "Central Market", "Valea Morilor Park", "Placinte"],
-  ["Monaco", "Monaco", "Prince's Palace", "Monte Carlo", "Larvotto Beach", "Barbajuan"],
-  ["Podgorica", "Montenegro", "Millennium Bridge", "Bokeska Street", "Moraca River", "Cicvara"],
-  ["Skopje", "North Macedonia", "Stone Bridge", "Old Bazaar", "Vodno Mountain", "Tavce gravce"],
-  ["Oslo", "Norway", "Oslo Opera House", "Aker Brygge", "Vigeland Park", "Norwegian salmon"],
-  ["Warsaw", "Poland", "Royal Castle", "Nowy Swiat", "Lazienki Park", "Pierogi"],
-  ["Lisbon", "Portugal", "Belem Tower", "Time Out Market", "Miradouro da Senhora do Monte", "Pastel de nata"],
-  ["Bucharest", "Romania", "Palace of Parliament", "Lipscani", "Cismigiu Gardens", "Sarmale"],
-  ["San Marino", "San Marino", "Guaita Tower", "Historic Centre Shops", "Monte Titano", "Piadina"],
-  ["Belgrade", "Serbia", "Belgrade Fortress", "Knez Mihailova", "Kalemegdan Park", "Pljeskavica"],
-  ["Bratislava", "Slovakia", "Bratislava Castle", "Old Market Hall", "Danube Promenade", "Bryndzove halusky"],
-  ["Ljubljana", "Slovenia", "Ljubljana Castle", "Central Market", "Tivoli Park", "Potica"],
-  ["Stockholm", "Sweden", "Royal Palace", "Ostermalm Market Hall", "Djurgarden", "Swedish meatballs"],
-  ["Zurich", "Switzerland", "Grossmunster", "Bahnhofstrasse", "Lake Zurich", "Rosti"],
-  ["Kyiv", "Ukraine", "St Sophia's Cathedral", "Andriyivskyy Descent", "Mariinsky Park", "Borscht"],
-  ["Vatican City", "Vatican City", "St Peter's Basilica", "Vatican Museum Shop", "Vatican Gardens", "Roman trattoria meal"],
-  ["Moscow", "Russia", "Red Square", "GUM", "Zaryadye Park", "Borscht and blini"]
-];
-
-expandedDestinations.forEach(([city, country, landmark, market, nature, dish]) => {
-  if (!destinationData[city]) {
-    destinationData[city] = makeDestination(country, landmark, market, nature, dish, city);
-  }
-});
-
-const destinationAliases = {
-  hongkong: "Hong Kong",
-  uae: "Dubai",
-  unitedarabemirates: "Dubai",
-  turkey: "Istanbul",
-  turkiye: "Istanbul",
-  uk: "London",
-  england: "London",
-  greatbritain: "London",
-  czechia: "Prague",
-  holland: "Amsterdam",
-  burma: "Naypyidaw",
-  laos: "Vientiane",
-  timorleste: "Dili"
-};
-
-const times = ["08:00", "10:00", "12:00", "14:00", "17:00", "20:00"];
 const storageKeys = {
-  saved: "travelgenie.savedTrips",
-  recent: "travelgenie.recentTrips"
+  saved: "bounce.savedTrips",
+  recent: "bounce.recentTrips"
 };
 
 const state = {
@@ -534,6 +28,8 @@ const navToggle = document.querySelector(".nav-toggle");
 const toast = document.querySelector("#toast");
 const adminDestinations = document.querySelector("#admin-destinations");
 const adminAttractions = document.querySelector("#admin-attractions");
+const feedbackForm = document.querySelector("#feedback-form");
+const feedbackMessageInput = document.querySelector("#feedback-message");
 
 function init() {
   populateCurrencies();
@@ -564,7 +60,7 @@ function bindEvents() {
       return;
     }
     if (heroDestinationInput.value.trim()) {
-      destinationInput.value = normalizeDestination(heroDestinationInput.value.trim());
+      destinationInput.value = heroDestinationInput.value.trim();
       updateBudgetTip();
     }
     document.querySelector("#planner").scrollIntoView({ behavior: "smooth" });
@@ -587,7 +83,12 @@ function bindEvents() {
     const originalLabel = submitButton.textContent;
     submitButton.disabled = true;
     submitButton.textContent = "Generating...";
-    resultSection.innerHTML = `<div class="empty-result"><h2>Generating your itinerary</h2><p>Gemini is arranging the route, budget, meals, and daily timing.</p></div>`;
+    resultSection.innerHTML = `
+      <div class="loading-result" role="status" aria-live="polite">
+        <img class="loading-logo" src="assets/bounce-logo.svg" alt="Bounce logo" />
+        <p>Building your itinerary with Gemini...</p>
+      </div>
+    `;
     resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
       const trip = await buildTrip(new FormData(tripForm));
@@ -597,10 +98,9 @@ function bindEvents() {
       updateCounts();
       renderTripList();
     } catch (error) {
-      resultSection.innerHTML = `<div class="empty-result"><h2>Could not generate itinerary</h2><p>${escapeHtml(
-        error.message
-      )}</p></div>`;
-      showToast(error.message);
+      const failureMessage = "Something went wrong. Please try again later.";
+      resultSection.innerHTML = `<div class="empty-result"><h2>Something went wrong</h2><p>${failureMessage}</p></div>`;
+      showToast(failureMessage);
     } finally {
       submitButton.disabled = false;
       submitButton.textContent = originalLabel;
@@ -639,10 +139,18 @@ function bindEvents() {
   });
   document.querySelector("#logout-button").addEventListener("click", logoutUser);
   document.querySelector("#nav-logout-button").addEventListener("click", logoutUser);
+
+  feedbackForm.addEventListener("submit", submitFeedback);
+  feedbackMessageInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      feedbackForm.requestSubmit();
+    }
+  });
 }
 
 function populateCurrencies() {
-  Object.keys(currencies).forEach((code) => {
+  currencies.forEach((code) => {
     const option = document.createElement("option");
     option.value = code;
     option.textContent = code;
@@ -652,89 +160,20 @@ function populateCurrencies() {
 }
 
 function handleDestinationInput() {
-  const query = destinationInput.value.trim().toLowerCase();
+  const query = destinationInput.value.trim();
   suggestionBox.innerHTML = "";
-  destinationMessage.textContent = "";
+  suggestionBox.classList.remove("active");
 
   if (!query) {
-    suggestionBox.classList.remove("active");
+    destinationMessage.textContent = "";
     return;
   }
 
-  const suggestions = getSuggestions(query);
-  if (!suggestions.length) {
-    destinationMessage.textContent = "Gemini can plan this destination. Add any must-visit places below.";
-    suggestionBox.classList.remove("active");
-    return;
-  }
-
-  suggestions.forEach((suggestion) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = suggestion;
-    button.addEventListener("mousedown", () => {
-      destinationInput.value = normalizeDestination(suggestion);
-      updateBudgetTip();
-      suggestionBox.classList.remove("active");
-    });
-    suggestionBox.append(button);
-  });
-  suggestionBox.classList.add("active");
-}
-
-function getSuggestions(query) {
-  const normalizedQuery = searchKey(query);
-  const destinations = Object.entries(destinationData);
-  const destinationMatches = destinations
-    .filter(([name, details]) => {
-      const searchable = searchKey(`${name} ${details.country}`);
-      return searchable.includes(normalizedQuery);
-    })
-    .map(([name, details]) => `${name}, ${details.country}`);
-
-  const aliasMatches = Object.entries(destinationAliases)
-    .filter(([alias]) => alias.includes(normalizedQuery))
-    .map(([, city]) => `${city}, ${destinationData[city].country}`);
-
-  const attractionMatches = destinations.flatMap(([city, details]) =>
-    details.attractions
-      .filter((attraction) => searchKey(attraction.name).includes(normalizedQuery))
-      .map((attraction) => `${attraction.name}, ${city}`)
-  );
-
-  return [...new Set([...destinationMatches, ...aliasMatches, ...attractionMatches])].slice(0, 9);
-}
-
-function normalizeDestination(value) {
-  const cleaned = value.split(",")[0].trim();
-  const cleanedKey = searchKey(cleaned);
-  if (destinationAliases[cleanedKey]) return destinationAliases[cleanedKey];
-
-  const direct = Object.keys(destinationData).find((name) => searchKey(name) === cleanedKey);
-  if (direct) return direct;
-
-  const fromCountry = Object.entries(destinationData).find(([, details]) => searchKey(details.country) === cleanedKey);
-  if (fromCountry) return fromCountry[0];
-
-  const fromAttraction = Object.entries(destinationData).find(([, details]) =>
-    details.attractions.some((attraction) => cleanedKey.includes(searchKey(attraction.name)))
-  );
-  return fromAttraction ? fromAttraction[0] : value;
-}
-
-function searchKey(value) {
-  return String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function getDestination(value) {
-  const normalized = normalizeDestination(value || "Tokyo");
-  if (destinationData[normalized]) return { name: normalized, ...destinationData[normalized] };
-  return { name: value || "Tokyo", country: "", transport: "", food: [], attractions: [] };
+  destinationMessage.textContent = "Enter your desired place to visit, then add any must-visit spots below if you have any.";
 }
 
 function updateBudgetTip() {
-  const data = getDestination(destinationInput.value);
-  const place = data.country ? `${data.name}, ${data.country}` : data.name;
+  const place = destinationInput.value.trim() || "your destination";
   budgetTip.textContent = `${place}: Gemini will adapt the budget to your selected style and requested places.`;
 }
 
@@ -820,9 +259,7 @@ function normalizeGeneratedTrip(request, generated) {
 
 function normalizeSchedule(schedule, request) {
   if (!Array.isArray(schedule) || !schedule.length) {
-    const destination = getDestination(request.destination);
-    const attractions = destination.attractions.length ? destination.attractions : [{ name: request.destination, cost: 20 }];
-    return createSchedule(destination, attractions, request.days, request.travelers, request.currency);
+    return Array.from({ length: request.days }, (_, index) => createFallbackDay(request, index));
   }
   const normalizedDays = schedule.slice(0, request.days).map((day, index) => {
     const sourceItems = getDayItems(day);
@@ -884,43 +321,8 @@ function createFallbackDay(request, dayIndex) {
   };
 }
 
-function createSchedule(destination, attractions, days, travelers, currency) {
-  const schedule = [];
-  for (let day = 1; day <= days; day += 1) {
-    const dayItems = [];
-    const morning = day === 1 ? "Airport Arrival" : `${destination.name} neighborhood walk`;
-    dayItems.push({ time: times[0], title: morning, cost: convertCost(18 * travelers, currency) });
-
-    for (let slot = 1; slot < times.length; slot += 1) {
-      const attraction = attractions[(day + slot - 2) % attractions.length];
-      const isMeal = slot === 2 || slot === 5;
-      const foods = destination.food.length ? destination.food : ["Local breakfast", "Neighborhood lunch", "Regional dinner"];
-      const title = isMeal
-        ? `${foods[(day + slot) % foods.length]}`
-        : attraction.name;
-      const cost = isMeal ? 24 * travelers : attraction.cost * travelers;
-      dayItems.push({ time: times[slot], title, cost: convertCost(cost, currency) });
-    }
-
-    const rawTotal = dayItems.reduce((sum, item) => sum + item.cost.raw, 0);
-    schedule.push({
-      day,
-      title: day === 1 ? "Arrival and first highlights" : `Explore ${destination.name}`,
-      items: dayItems,
-      total: { raw: rawTotal, label: formatMoney(rawTotal, currency) }
-    });
-  }
-  return schedule;
-}
-
-function convertCost(usdAmount, currency) {
-  const raw = Math.round(usdAmount * currencies[currency]);
-  return { raw, label: formatMoney(raw, currency) };
-}
-
 function formatMoney(amount, currency) {
-  const symbol = currencySymbols[currency] || `${currency} `;
-  return `${symbol}${Number(amount).toLocaleString()}`;
+  return `${currency || ""} ${Number(amount).toLocaleString()}`.trim();
 }
 
 function createBudgetBreakdown(budget) {
@@ -928,8 +330,8 @@ function createBudgetBreakdown(budget) {
     { label: "Accommodation", percent: 36, amount: budget * 0.36 },
     { label: "Food", percent: 20, amount: budget * 0.2 },
     { label: "Transportation", percent: 12, amount: budget * 0.12 },
-    { label: "Attractions", percent: 18, amount: budget * 0.18 },
-    { label: "Emergency", percent: 14, amount: budget * 0.14 }
+    { label: "Activities", percent: 18, amount: budget * 0.18 },
+    { label: "Buffer", percent: 14, amount: budget * 0.14 }
   ];
 }
 
@@ -1284,9 +686,52 @@ function showAuthRedirectMessage() {
 }
 
 function updateAdminStats() {
-  const destinations = Object.values(destinationData);
-  adminDestinations.textContent = destinations.length;
-  adminAttractions.textContent = destinations.reduce((sum, destination) => sum + destination.attractions.length, 0);
+  adminDestinations.textContent = "Gemini";
+  adminAttractions.textContent = "Live";
+}
+
+async function submitFeedback(event) {
+  event.preventDefault();
+  const message = feedbackMessageInput.value.trim();
+  if (message.length < 5) {
+    showToast("Please write a little more feedback before sending.");
+    feedbackMessageInput.focus();
+    return;
+  }
+
+  const submitButton = feedbackForm.querySelector("[type='submit']");
+  const originalLabel = submitButton.textContent;
+  submitButton.disabled = true;
+  submitButton.textContent = "Sending...";
+
+  try {
+    const response = await fetch("/api/feedback", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const messages = {
+        unauthorized: "Please log in before sending feedback.",
+        feedback_too_short: "Please write a little more feedback before sending.",
+        feedback_too_long: "Please shorten the feedback before sending.",
+        missing_feedback_email_config:
+          "Feedback email is not configured yet. Add SMTP settings on the server.",
+        feedback_send_failed: "Bounce could not send the feedback email. Please try again later."
+      };
+      throw new Error(messages[payload.error] || "Bounce could not send the feedback email.");
+    }
+
+    feedbackForm.reset();
+    showToast("Thanks. Your feedback was sent to Bounce.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = originalLabel;
+  }
 }
 
 function escapeHtml(value) {

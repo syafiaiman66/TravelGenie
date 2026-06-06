@@ -107,15 +107,12 @@ button {
   font-weight: 800;
 }
 
-.brand-mark {
-  display: grid;
+.brand-logo {
   width: 36px;
   height: 36px;
-  place-items: center;
-  color: white;
-  background: var(--green);
   border-radius: 8px;
-  font-size: 0.85rem;
+  object-fit: cover;
+  box-shadow: 0 8px 18px rgba(239, 126, 26, 0.18);
 }
 
 .site-nav {
@@ -375,7 +372,8 @@ textarea:focus {
 .scenery-section,
 .saved-section,
 .features-section,
-.admin-section {
+.admin-section,
+.feedback-section {
   padding: 84px clamp(18px, 5vw, 72px);
 }
 
@@ -456,6 +454,7 @@ textarea:focus {
 
 .section-heading p:not(.eyebrow),
 .admin-section p,
+.feedback-section p,
 .site-footer p {
   color: var(--muted);
 }
@@ -471,7 +470,8 @@ textarea:focus {
 .dashboard-panel,
 .result-card,
 .saved-section,
-.admin-section {
+.admin-section,
+.feedback-section {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(255, 250, 242, 0.9);
@@ -481,6 +481,33 @@ textarea:focus {
 
 .planner-form {
   padding: clamp(18px, 3vw, 28px);
+}
+
+.feedback-section {
+  max-width: calc(100% - clamp(36px, 10vw, 144px));
+  margin: 0 auto 84px;
+}
+
+.feedback-form {
+  display: grid;
+  gap: 12px;
+  max-width: 820px;
+}
+
+.feedback-form label {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.feedback-form textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+}
+
+.feedback-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .form-grid {
@@ -642,6 +669,45 @@ textarea:focus {
 .empty-result p {
   max-width: 520px;
   color: var(--muted);
+}
+
+.loading-result {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  gap: 18px;
+  text-align: center;
+  border: 1px dashed rgba(239, 126, 26, 0.35);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 36px;
+}
+
+.loading-logo {
+  width: 104px;
+  height: 104px;
+  border-radius: 22px;
+  box-shadow: 0 20px 45px rgba(239, 126, 26, 0.24);
+  animation: bounceLogoPulse 1.8s ease-in-out infinite;
+}
+
+.loading-result p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+@keyframes bounceLogoPulse {
+  0%,
+  100% {
+    transform: scale(0.98) rotate(0deg);
+    opacity: 0.78;
+  }
+
+  50% {
+    transform: scale(1.04) rotate(2deg);
+    opacity: 1;
+  }
 }
 
 .result-card {
@@ -1051,7 +1117,8 @@ body.logged-in .hero-search.auth-required {
 body.logged-in .planner-shell.auth-required,
 body.logged-in .result-section.auth-required,
 body.logged-in .features-section.auth-required,
-body.logged-in .saved-section.auth-required {
+body.logged-in .saved-section.auth-required,
+body.logged-in .feedback-section.auth-required {
   display: block;
 }
 
@@ -1222,6 +1289,7 @@ body.logged-out .footer-links .auth-required {
   .saved-section,
   .features-section,
   .admin-section,
+  .feedback-section,
   .site-footer,
   .result-actions {
     display: none !important;

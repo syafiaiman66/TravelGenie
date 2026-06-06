@@ -2,12 +2,15 @@ import hashlib
 import json
 import os
 import secrets
+import smtplib
+import ssl
 import sqlite3
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from email.message import EmailMessage
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -59,6 +62,12 @@ else:
     SQL_PARAM = "?"
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8000"))
+FEEDBACK_TO = os.environ.get("FEEDBACK_TO") or "bouncebtoe@gmail.com"
+SMTP_HOST = os.environ.get("SMTP_HOST") or ""
+SMTP_PORT = int(os.environ.get("SMTP_PORT") or "587")
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME") or ""
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD") or ""
+SMTP_FROM = os.environ.get("SMTP_FROM") or SMTP_USERNAME or FEEDBACK_TO
 
 
 def connect_db():
@@ -254,8 +263,8 @@ def json_error_summary(detail):
     return detail[:280] if detail else "Gemini did not return an error message."
 
 
-class TravelGenieHandler(SimpleHTTPRequestHandler):
-    server_version = "TravelGenie/1.0"
+class BounceHandler(SimpleHTTPRequestHandler):
+    server_version = "Bounce/1.0"
 
     def translate_path(self, path):
         path = urllib.parse.urlparse(path).path
@@ -285,6 +294,9 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/itinerary":
             self.handle_generate_itinerary()
+            return
+        if parsed.path == "/api/feedback":
+            self.handle_feedback()
             return
         if parsed.path == "/auth/logout":
             self.handle_logout()
@@ -483,6 +495,79 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
 
         self.send_json({"itinerary": itinerary})
 
+    def handle_feedback(self):
+        user = self.get_session_user()
+        if not user:
+            self.send_json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            return
+
+        try:
+            payload = self.read_json_body()
+            message = str(payload.get("message") or "").strip()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            self.send_json({"error": "invalid_json"}, HTTPStatus.BAD_REQUEST)
+            return
+
+        if len(message) < 5:
+            self.send_json({"error": "feedback_too_short"}, HTTPStatus.BAD_REQUEST)
+            return
+        if len(message) > 4000:
+            self.send_json({"error": "feedback_too_long"}, HTTPStatus.BAD_REQUEST)
+            return
+
+        try:
+            self.send_feedback_email(message, user)
+        except RuntimeError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
+            return
+        except Exception:
+            print("Feedback email failed", file=sys.stderr, flush=True)
+            self.send_json({"error": "feedback_send_failed"}, HTTPStatus.BAD_GATEWAY)
+            return
+
+        self.send_json({"ok": True})
+
+    def send_feedback_email(self, message, user):
+        if not SMTP_HOST or not SMTP_FROM or not FEEDBACK_TO:
+            raise RuntimeError("missing_feedback_email_config")
+
+        sender_name = user.get("full_name") if user else "Anonymous visitor"
+        sender_email = user.get("email") if user else ""
+        email = EmailMessage()
+        email["Subject"] = "Bounce customer feedback"
+        email["From"] = SMTP_FROM
+        email["To"] = FEEDBACK_TO
+        if sender_email:
+            email["Reply-To"] = sender_email
+        email.set_content(
+            "\n".join(
+                [
+                    "New Bounce feedback was submitted.",
+                    "",
+                    f"Name: {sender_name or 'Unknown'}",
+                    f"Email: {sender_email or 'Not signed in'}",
+                    f"Submitted at: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}",
+                    "",
+                    "Message:",
+                    message,
+                ]
+            )
+        )
+
+        if SMTP_PORT == 465:
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context, timeout=15) as smtp:
+                if SMTP_USERNAME or SMTP_PASSWORD:
+                    smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+                smtp.send_message(email)
+            return
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as smtp:
+            smtp.starttls(context=ssl.create_default_context())
+            if SMTP_USERNAME or SMTP_PASSWORD:
+                smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+            smtp.send_message(email)
+
     def generate_itinerary_with_gemini(self, trip_request, api_key):
         prompt = self.build_itinerary_prompt(trip_request)
         gemini_payload = self.request_gemini(prompt, api_key)
@@ -561,11 +646,14 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
         if budget <= 0 or travelers <= 0 or days <= 0:
             raise ValueError("Budget, travelers, and days must be greater than zero.")
 
+        currency = str(trip_request["currency"]).strip().upper()
         prompt_payload = {
             "destination": destination,
             "totalBudget": budget,
-            "currency": str(trip_request["currency"]).strip(),
+            "currency": currency,
+            "budgetCurrency": currency,
             "travelers": travelers,
+            "people": travelers,
             "days": min(days, 21),
             "tripName": str(trip_request.get("tripName") or "").strip(),
             "interests": trip_request.get("interests") or [],
@@ -574,7 +662,7 @@ class TravelGenieHandler(SimpleHTTPRequestHandler):
         }
 
         return f"""
-You are TravelGenie. Generate one complete travel itinerary that matches the provided JSON schema.
+You are Bounce. Generate one complete travel itinerary that matches the provided JSON schema.
 
 TRIP_PARAMETERS:
 {json.dumps(prompt_payload, ensure_ascii=False)}
@@ -605,6 +693,14 @@ FIELD_RULES:
 - cost.label and total.label must include TRIP_PARAMETERS.currency or its symbol.
 - total.raw must equal the sum of that day's item cost.raw values.
 
+CURRENCY_RULES:
+- Use the user-selected currency as the budget currency.
+- Keep all estimated costs in that currency.
+- Do not convert to another currency unless the user asks.
+- The selected currency is TRIP_PARAMETERS.currency.
+- Reason about practical costs using that selected currency and the user's totalBudget.
+- breakdown.amount, cost.raw, and total.raw must all be numeric amounts in TRIP_PARAMETERS.currency.
+
 APP_JS_JSON_FORMAT:
 Use this exact shape because the frontend app.js renders these fields directly.
 Replace all example values with real itinerary values for TRIP_PARAMETERS.
@@ -633,12 +729,12 @@ Do not copy placeholder text.
       "day": 1,
       "title": "Unique day theme",
       "items": [
-        {{"time": "08:30", "title": "Breakfast or arrival activity", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "MYR0"}}}},
-        {{"time": "10:30", "title": "Morning activity at a real place", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "MYR0"}}}},
-        {{"time": "14:00", "title": "Afternoon activity at a real place", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "MYR0"}}}},
-        {{"time": "19:30", "title": "Evening meal or nightlife activity", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "MYR0"}}}}
+        {{"time": "08:30", "title": "Breakfast or arrival activity", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "{currency} 0"}}}},
+        {{"time": "10:30", "title": "Morning activity at a real place", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "{currency} 0"}}}},
+        {{"time": "14:00", "title": "Afternoon activity at a real place", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "{currency} 0"}}}},
+        {{"time": "19:30", "title": "Evening meal or nightlife activity", "notes": "Describe what the traveler does in this activity.", "cost": {{"raw": 0, "label": "{currency} 0"}}}}
       ],
-      "total": {{"raw": 0, "label": "MYR0"}}
+      "total": {{"raw": 0, "label": "{currency} 0"}}
     }}
   ]
 }}
@@ -756,8 +852,8 @@ FINAL_SELF_CHECK:
 def main():
     init_db()
     os.chdir(ROOT)
-    httpd = ThreadingHTTPServer((HOST, PORT), TravelGenieHandler)
-    print(f"TravelGenie running at http://{HOST}:{PORT}/")
+    httpd = ThreadingHTTPServer((HOST, PORT), BounceHandler)
+    print(f"Bounce running at http://{HOST}:{PORT}/")
     httpd.serve_forever()
 
 
