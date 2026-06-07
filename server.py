@@ -520,8 +520,20 @@ class BounceHandler(SimpleHTTPRequestHandler):
         except RuntimeError as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
             return
-        except Exception:
-            print("Feedback email failed", file=sys.stderr, flush=True)
+        except smtplib.SMTPAuthenticationError as exc:
+            print(f"Feedback SMTP authentication failed: {exc.smtp_code} {exc.smtp_error!r}", file=sys.stderr, flush=True)
+            self.send_json({"error": "feedback_smtp_auth_failed"}, HTTPStatus.BAD_GATEWAY)
+            return
+        except (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected, TimeoutError, OSError) as exc:
+            print(f"Feedback SMTP connection failed: {exc!r}", file=sys.stderr, flush=True)
+            self.send_json({"error": "feedback_smtp_connection_failed"}, HTTPStatus.BAD_GATEWAY)
+            return
+        except smtplib.SMTPException as exc:
+            print(f"Feedback SMTP failed: {exc!r}", file=sys.stderr, flush=True)
+            self.send_json({"error": "feedback_smtp_failed"}, HTTPStatus.BAD_GATEWAY)
+            return
+        except Exception as exc:
+            print(f"Feedback email failed: {exc!r}", file=sys.stderr, flush=True)
             self.send_json({"error": "feedback_send_failed"}, HTTPStatus.BAD_GATEWAY)
             return
 
@@ -859,3 +871,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

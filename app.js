@@ -719,6 +719,11 @@ async function submitFeedback(event) {
         feedback_too_long: "Please shorten the feedback before sending.",
         missing_feedback_email_config:
           "Feedback email is not configured yet. Add SMTP settings on the server.",
+        feedback_smtp_auth_failed:
+          "Gmail rejected the feedback login. Check SMTP_USERNAME and SMTP_PASSWORD in Render.",
+        feedback_smtp_connection_failed:
+          "Bounce could not connect to the email server. Check SMTP_HOST and SMTP_PORT in Render.",
+        feedback_smtp_failed: "The email server rejected the feedback message. Check Render logs.",
         feedback_send_failed: "Bounce could not send the feedback email. Please try again later."
       };
       throw new Error(messages[payload.error] || "Bounce could not send the feedback email.");
@@ -755,3 +760,4 @@ function showToast(message) {
 }
 
 init();
+
