@@ -260,7 +260,7 @@ def json_error_summary(detail):
             return message
     except json.JSONDecodeError:
         pass
-    return detail[:280] if detail else "Gemini did not return an error message."
+    return detail[:280] if detail else "AI did not return an error message."
 
 
 class BounceHandler(SimpleHTTPRequestHandler):
@@ -473,7 +473,7 @@ class BounceHandler(SimpleHTTPRequestHandler):
 
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
-            self.send_json({"error": "missing_gemini_config"}, HTTPStatus.SERVICE_UNAVAILABLE)
+            self.send_json({"error": "missing_ai_config"}, HTTPStatus.SERVICE_UNAVAILABLE)
             return
 
         try:
@@ -483,12 +483,12 @@ class BounceHandler(SimpleHTTPRequestHandler):
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
         except GeminiGenerationError as exc:
-            self.send_json({"error": "gemini_generation_failed", "detail": str(exc)}, HTTPStatus.BAD_GATEWAY)
+            self.send_json({"error": "ai_generation_failed", "detail": str(exc)}, HTTPStatus.BAD_GATEWAY)
             return
         except Exception as exc:
-            print(f"Gemini generation error: {exc!r}", file=sys.stderr, flush=True)
+            print(f"AI generation error: {exc!r}", file=sys.stderr, flush=True)
             self.send_json(
-                {"error": "gemini_generation_failed", "detail": "The server could not read Gemini's response."},
+                {"error": "ai_generation_failed", "detail": "The server could not read the AI response."},
                 HTTPStatus.BAD_GATEWAY,
             )
             return
@@ -604,7 +604,7 @@ class BounceHandler(SimpleHTTPRequestHandler):
         }
         url = GEMINI_API_URL.format(model=urllib.parse.quote(GEMINI_MODEL))
         started_at = time.monotonic()
-        print(f"Gemini request started for {GEMINI_MODEL}", file=sys.stderr, flush=True)
+        print(f"AI request started for {GEMINI_MODEL}", file=sys.stderr, flush=True)
         request = urllib.request.Request(
             url,
             data=json_bytes(request_payload),
@@ -615,21 +615,21 @@ class BounceHandler(SimpleHTTPRequestHandler):
             with urllib.request.urlopen(request, timeout=180) as response:
                 payload = json.loads(response.read().decode("utf-8"))
                 elapsed = time.monotonic() - started_at
-                print(f"Gemini request finished in {elapsed:.1f}s", file=sys.stderr, flush=True)
+                print(f"AI request finished in {elapsed:.1f}s", file=sys.stderr, flush=True)
                 return payload
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             summary = json_error_summary(detail)
-            print(f"Gemini API HTTP error {exc.code}: {detail}", file=sys.stderr, flush=True)
-            raise GeminiGenerationError(f"Gemini API error {exc.code}: {summary}") from exc
+            print(f"AI API HTTP error {exc.code}: {detail}", file=sys.stderr, flush=True)
+            raise GeminiGenerationError(f"AI API error {exc.code}: {summary}") from exc
         except urllib.error.URLError as exc:
-            print(f"Gemini network error: {exc!r}", file=sys.stderr, flush=True)
-            raise GeminiGenerationError(f"Could not reach Gemini: {exc.reason}") from exc
+            print(f"AI network error: {exc!r}", file=sys.stderr, flush=True)
+            raise GeminiGenerationError(f"Could not reach the AI service: {exc.reason}") from exc
 
     def parse_gemini_itinerary(self, gemini_payload):
         prompt_feedback = gemini_payload.get("promptFeedback") or {}
         if prompt_feedback.get("blockReason"):
-            raise GeminiGenerationError(f"Gemini blocked the prompt: {prompt_feedback['blockReason']}.")
+            raise GeminiGenerationError(f"AI blocked the prompt: {prompt_feedback['blockReason']}.")
 
         candidate = (gemini_payload.get("candidates") or [{}])[0]
         content = candidate.get("content") or {}
@@ -637,13 +637,13 @@ class BounceHandler(SimpleHTTPRequestHandler):
         text = "".join(part.get("text", "") for part in parts).strip()
         if not text:
             finish_reason = candidate.get("finishReason", "unknown")
-            raise GeminiGenerationError(f"Gemini returned no itinerary text. Finish reason: {finish_reason}.")
+            raise GeminiGenerationError(f"AI returned no itinerary text. Finish reason: {finish_reason}.")
 
         try:
             return parse_itinerary_json(text)
         except json.JSONDecodeError as exc:
-            print(f"Gemini returned non-JSON text: {text[:1000]}", file=sys.stderr, flush=True)
-            raise GeminiGenerationError("Gemini returned text that was not valid itinerary JSON.") from exc
+            print(f"AI returned non-JSON text: {text[:1000]}", file=sys.stderr, flush=True)
+            raise GeminiGenerationError("AI returned text that was not valid itinerary JSON.") from exc
 
     def build_itinerary_prompt(self, trip_request):
         required = ["destination", "budget", "currency", "travelers", "days", "budgetStyle"]

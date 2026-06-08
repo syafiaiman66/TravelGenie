@@ -108,8 +108,8 @@ button {
 }
 
 .brand-logo {
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   border-radius: 8px;
   object-fit: cover;
   box-shadow: 0 8px 18px rgba(239, 126, 26, 0.18);
@@ -514,6 +514,15 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+}
+
+.form-grid > .field {
+  grid-template-rows: auto 58px 20px;
+}
+
+.form-grid > .field input,
+.form-grid > .field select {
+  height: 58px;
 }
 
 .field {

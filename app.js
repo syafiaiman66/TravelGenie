@@ -1,4 +1,5 @@
 const currencies = ["MYR", "KRW", "USD", "SGD", "JPY", "EUR", "GBP", "AUD", "CAD", "THB", "IDR", "PHP", "VND", "CNY", "INR"];
+const WEB3FORMS_ACCESS_KEY = "a6512cd8-7846-472b-8394-a72bce8bc06f";
 
 const storageKeys = {
   saved: "bounce.savedTrips",
@@ -15,7 +16,6 @@ const state = {
 const destinationInput = document.querySelector("#destination");
 const heroDestinationInput = document.querySelector("#hero-destination");
 const suggestionBox = document.querySelector("#destination-suggestions");
-const destinationMessage = document.querySelector("#destination-message");
 const customPlacesInput = document.querySelector("#custom-places");
 const currencySelect = document.querySelector("#currency");
 const tripForm = document.querySelector("#trip-form");
@@ -86,7 +86,7 @@ function bindEvents() {
     resultSection.innerHTML = `
       <div class="loading-result" role="status" aria-live="polite">
         <img class="loading-logo" src="assets/bounce-logo.svg" alt="Bounce logo" />
-        <p>Building your itinerary with Gemini...</p>
+        <p>Building your itinerary with AI...</p>
       </div>
     `;
     resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -109,7 +109,6 @@ function bindEvents() {
 
   tripForm.addEventListener("reset", () => {
     setTimeout(() => {
-      destinationMessage.textContent = "";
       updateBudgetTip();
     }, 0);
   });
@@ -160,21 +159,13 @@ function populateCurrencies() {
 }
 
 function handleDestinationInput() {
-  const query = destinationInput.value.trim();
   suggestionBox.innerHTML = "";
   suggestionBox.classList.remove("active");
-
-  if (!query) {
-    destinationMessage.textContent = "";
-    return;
-  }
-
-  destinationMessage.textContent = "Enter your desired place to visit, then add any must-visit spots below if you have any.";
 }
 
 function updateBudgetTip() {
   const place = destinationInput.value.trim() || "your destination";
-  budgetTip.textContent = `${place}: Gemini will adapt the budget to your selected style and requested places.`;
+  budgetTip.textContent = `${place}: AI will adapt the budget to your selected style and requested places.`;
 }
 
 async function buildTrip(formData) {
@@ -201,7 +192,7 @@ async function buildTrip(formData) {
     });
   } catch (error) {
     if (error.name === "AbortError") {
-      throw new Error("Gemini took too long to respond. Please try fewer days or try again.");
+      throw new Error("The AI planner took too long to respond. Please try fewer days or try again.");
     }
     throw new Error("The itinerary server could not be reached.");
   } finally {
@@ -213,8 +204,8 @@ async function buildTrip(formData) {
     if (!response.ok) {
       const messages = {
         unauthorized: "Please log in before generating an itinerary.",
-        missing_gemini_config: "Gemini is not configured yet. Add GEMINI_API_KEY on the server.",
-        gemini_generation_failed: "Gemini could not generate the itinerary. Please check Render Logs or try again."
+        missing_ai_config: "AI generation is not configured yet. Add the AI API key on the server.",
+        ai_generation_failed: "AI could not generate the itinerary. Please try again later."
       };
       const detail = payload.detail ? ` ${payload.detail}` : "";
       throw new Error(`${messages[payload.error] || payload.error || "The itinerary server could not be reached."}${detail}`);
@@ -305,7 +296,7 @@ function createFallbackActivity(request, dayIndex, slotIndex) {
   return {
     time: times[slotIndex] || "09:00",
     title: `${titles[slotIndex] || titles[1]} Day ${dayIndex + 1}`,
-    notes: "Fallback activity added because Gemini omitted this slot.",
+    notes: "Fallback activity added because AI omitted this slot.",
     cost: { raw, label: formatMoney(raw, request.currency) }
   };
 }
@@ -686,7 +677,7 @@ function showAuthRedirectMessage() {
 }
 
 function updateAdminStats() {
-  adminDestinations.textContent = "Gemini";
+  adminDestinations.textContent = "AI";
   adminAttractions.textContent = "Live";
 }
 
@@ -699,40 +690,43 @@ async function submitFeedback(event) {
     return;
   }
 
+  if (!WEB3FORMS_ACCESS_KEY || WEB3FORMS_ACCESS_KEY.includes("PASTE_")) {
+    showToast("Feedback form is not configured yet. Add your Web3Forms access key.");
+    return;
+  }
+
   const submitButton = feedbackForm.querySelector("[type='submit']");
   const originalLabel = submitButton.textContent;
   submitButton.disabled = true;
   submitButton.textContent = "Sending...";
 
   try {
-    const response = await fetch("/api/feedback", {
+    const response = await fetch("https://api.web3forms.com/submit", {
       method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message })
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        access_key: WEB3FORMS_ACCESS_KEY,
+        subject: "Bounce customer feedback",
+        from_name: state.user?.fullName || "Bounce user",
+        name: state.user?.fullName || "Bounce user",
+        email: state.user?.email || "bouncebtoe@gmail.com",
+        message,
+        page_url: window.location.href,
+        botcheck: false
+      })
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const messages = {
-        unauthorized: "Please log in before sending feedback.",
-        feedback_too_short: "Please write a little more feedback before sending.",
-        feedback_too_long: "Please shorten the feedback before sending.",
-        missing_feedback_email_config:
-          "Feedback email is not configured yet. Add SMTP settings on the server.",
-        feedback_smtp_auth_failed:
-          "Gmail rejected the feedback login. Check SMTP_USERNAME and SMTP_PASSWORD in Render.",
-        feedback_smtp_connection_failed:
-          "Bounce could not connect to the email server. Check SMTP_HOST and SMTP_PORT in Render.",
-        feedback_smtp_failed: "The email server rejected the feedback message. Check Render logs.",
-        feedback_send_failed: "Bounce could not send the feedback email. Please try again later."
-      };
-      throw new Error(messages[payload.error] || "Bounce could not send the feedback email.");
+    if (!response.ok || payload.success === false) {
+      if (response.status === 429) {
+        throw new Error("Too many feedback submissions. Please try again later.");
+      }
+      throw new Error(payload.message || "Bounce could not send the feedback email.");
     }
 
     feedbackForm.reset();
     showToast("Thanks. Your feedback was sent to Bounce.");
   } catch (error) {
-    showToast(error.message);
+    showToast(error.message || "Bounce could not send the feedback email.");
   } finally {
     submitButton.disabled = false;
     submitButton.textContent = originalLabel;

@@ -1,13 +1,13 @@
 # Bounce
 
-Bounce is an AI-powered travel itinerary planner. Users can sign in with Google, enter a destination, budget, currency, trip duration, number of travelers, travel interests, budget style, and places they want to visit. Bounce then uses Google Gemini 2.5 Flash to generate a practical day-by-day itinerary with activities, estimated costs, transportation guidance, food recommendations, and a budget breakdown.
+Bounce is an AI-powered travel itinerary planner. Users can sign in with Google, enter a destination, budget, currency, trip duration, number of travelers, travel interests, budget style, and places they want to visit. Bounce then uses an AI model to generate a practical day-by-day itinerary with activities, estimated costs, transportation guidance, food recommendations, and a budget breakdown.
 
 The project was built as a lightweight full-stack web app using plain HTML, CSS, JavaScript, and Python. It runs with SQLite locally and can use Render PostgreSQL in production.
 
 ## Features
 
 - Google OAuth login and session handling
-- Gemini 2.5 Flash itinerary generation
+- AI-powered itinerary generation
 - Custom destination input, including places the user wants to visit
 - Budget style options such as Student, Comfort, Luxury, Backpacker, and Family comfort
 - User-selected currency for itinerary cost estimates
@@ -21,7 +21,7 @@ The project was built as a lightweight full-stack web app using plain HTML, CSS,
 
 - Frontend: HTML, CSS, JavaScript
 - Backend: Python `http.server`
-- AI model: Google Gemini 2.5 Flash
+- AI model: configurable travel-planning model
 - Authentication: Google OAuth 2.0
 - Local database: SQLite
 - Production database: Render PostgreSQL
@@ -34,7 +34,7 @@ TravelGenie/
   app.js                 Frontend logic and itinerary rendering
   index.html             Main website UI
   styles.css             Website styling
-  server.py              Python backend, auth, Gemini, feedback email
+  server.py              Python backend, auth, AI generation, feedback email
   render.yaml            Render deployment blueprint
   requirements.txt       Python dependencies
   .env.example           Example environment variables
@@ -47,11 +47,11 @@ TravelGenie/
 1. The user logs in with Google.
 2. The user fills in the trip form.
 3. The browser sends the trip request to `/api/itinerary`.
-4. The Python server sends a structured prompt to Gemini 2.5 Flash.
-5. Gemini returns itinerary JSON.
+4. The Python server sends a structured prompt to the AI model.
+5. The AI model returns itinerary JSON.
 6. The frontend renders the JSON as itinerary cards.
 
-Gemini is expected to return this main JSON structure. The `schedule` array repeats for the number of days selected by the user, and each day should contain four activity items.
+The AI model is expected to return this main JSON structure. The `schedule` array repeats for the number of days selected by the user, and each day should contain four activity items.
 
 ```json
 {
@@ -144,7 +144,7 @@ Gemini is expected to return this main JSON structure. The `schedule` array repe
    GOOGLE_CLIENT_ID=your-google-client-id
    GOOGLE_CLIENT_SECRET=your-google-client-secret
    GOOGLE_REDIRECT_URI=http://127.0.0.1:8000/auth/google/callback
-   GEMINI_API_KEY=your-gemini-api-key
+   GEMINI_API_KEY=your-ai-api-key
    GEMINI_MODEL=gemini-2.5-flash
    ```
 
@@ -176,12 +176,12 @@ For Render deployment, add this authorized redirect URI after your Render URL is
 https://YOUR-RENDER-SERVICE.onrender.com/auth/google/callback
 ```
 
-## Gemini Setup
+## AI API Setup
 
-Create a Gemini API key from Google AI Studio and add it to `.env` locally or Render environment variables in production:
+Create an AI API key and add it to `.env` locally or Render environment variables in production:
 
 ```env
-GEMINI_API_KEY=your-gemini-api-key
+GEMINI_API_KEY=your-ai-api-key
 GEMINI_MODEL=gemini-2.5-flash
 ```
 
@@ -209,8 +209,8 @@ If you use Gmail, `SMTP_PASSWORD` should be a Gmail app password, not your norma
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | OAuth callback URL |
-| `GEMINI_API_KEY` | Google Gemini API key |
-| `GEMINI_MODEL` | Gemini model name, usually `gemini-2.5-flash` |
+| `GEMINI_API_KEY` | AI API key used by the itinerary generator |
+| `GEMINI_MODEL` | AI model name used by the itinerary generator |
 | `DATABASE_URL` | PostgreSQL connection string used on Render |
 | `FEEDBACK_TO` | Email address that receives feedback |
 | `SMTP_HOST` | SMTP server host |

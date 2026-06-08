@@ -9,7 +9,8 @@
       content="Bounce creates personalized travel itineraries with schedules, attractions, food ideas, transportation tips, and budget breakdowns."
     />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="assets/bounce-logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css?v=20260608-ui-fix" />
   </head>
   <body>
     <header class="site-header">
@@ -45,7 +46,7 @@
         <div class="hero-media" role="img" aria-label="Travelers overlooking Tokyo at sunset"></div>
         <div class="hero-overlay"></div>
         <div class="hero-content">
-          <p class="eyebrow">AI trip planning with Gemini</p>
+          <p class="eyebrow">AI trip planning for real journeys</p>
           <h1>Bounce</h1>
           <p class="hero-copy">
             Build a day-by-day travel plan with activities, food, transport, and budget allocation
@@ -62,7 +63,7 @@
           </div>
           <div class="hero-stats auth-required" aria-label="Bounce highlights">
             <span><strong>15</strong> currencies</span>
-            <span><strong>Gemini</strong> powered</span>
+            <span><strong>AI</strong> powered</span>
             <span><strong>24/7</strong> trip access</span>
           </div>
         </div>
@@ -106,7 +107,7 @@
         <div class="section-heading">
           <p class="eyebrow">Trip Generator</p>
           <h2 id="planner-title">Create your itinerary</h2>
-          <p>Tell Gemini where you want to go, your budget style, and any places you want included.</p>
+          <p>Tell the AI planner where you want to go, your budget style, and any places you want included.</p>
         </div>
 
         <div class="planner-layout">
@@ -114,9 +115,8 @@
             <div class="form-grid">
               <div class="field with-suggestions">
                 <label for="destination">Destination</label>
-              <input id="destination" name="destination" type="text" placeholder="Tokyo" autocomplete="off" required />
+                <input id="destination" name="destination" type="text" placeholder="Tokyo" autocomplete="off" required />
                 <div class="suggestion-list" id="destination-suggestions" role="listbox"></div>
-                <p class="field-message" id="destination-message" aria-live="polite"></p>
               </div>
 
               <div class="field">
@@ -237,8 +237,8 @@
               src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80"
               alt="Historic street with travelers walking"
             />
-            <h3>Gemini Trip Planning</h3>
-            <p>Type any destination and must-visit places, then Bounce asks Gemini to build the itinerary directly.</p>
+            <h3>AI Trip Planning</h3>
+            <p>Type any destination and must-visit places, then Bounce uses AI to build the itinerary directly.</p>
           </article>
           <article>
             <img
@@ -270,7 +270,7 @@
         </div>
         <div class="admin-grid">
           <article><strong id="admin-users">1,248</strong><span>Users</span></article>
-          <article><strong id="admin-destinations">Gemini</strong><span>Planner</span></article>
+          <article><strong id="admin-destinations">AI</strong><span>Planner</span></article>
           <article><strong id="admin-attractions">Live</strong><span>AI Routes</span></article>
           <article><strong>15</strong><span>Currencies</span></article>
         </div>
@@ -321,7 +321,7 @@
 
     <dialog class="auth-dialog" id="auth-dialog">
       <form method="dialog" class="auth-card">
-        <button class="close-button" value="close" aria-label="Close login dialog">×</button>
+        <button class="close-button" value="close" aria-label="Close login dialog">&times;</button>
         <div class="auth-tabs">
           <button type="button" class="auth-tab active" data-auth-tab="login">Login</button>
           <button type="button" class="auth-tab" data-auth-tab="register">Register</button>
@@ -358,6 +358,6 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="app.js?v=20260607-duration-default"></script>
+    <script src="app.js?v=20260608-ai-copy"></script>
   </body>
 </html>
