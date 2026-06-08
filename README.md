@@ -11,10 +11,11 @@ The project was built as a lightweight full-stack web app using plain HTML, CSS,
 - Custom destination input, including places the user wants to visit
 - Budget style options such as Student, Comfort, Luxury, Backpacker, and Family comfort
 - User-selected currency for itinerary cost estimates
+- Saved itineraries stored in PostgreSQL for logged-in users
 - Multi-day itinerary cards with times, activities, notes, and estimated prices
 - Budget breakdown, transportation guidance, and food recommendations
 - Saved and recent trip history in the browser
-- Feedback form that can email customer messages to Bounce support
+- Feedback form that sends customer messages through Web3Forms
 - Render deployment support with PostgreSQL
 
 ## Tech Stack
@@ -24,8 +25,8 @@ The project was built as a lightweight full-stack web app using plain HTML, CSS,
 - AI model: configurable travel-planning model
 - Authentication: Google OAuth 2.0
 - Local database: SQLite
-- Production database: Render PostgreSQL
-- Email feedback: SMTP
+- Production database: PostgreSQL through `DATABASE_URL`
+- Feedback delivery: Web3Forms
 
 ## Project Structure
 
@@ -224,7 +225,7 @@ If you use Gmail, `SMTP_PASSWORD` should be a Gmail app password, not your norma
 
 ## Deploy On Render
 
-This project includes `render.yaml`, so it can be deployed as a Render Blueprint.
+This project includes `render.yaml`, so it can be deployed as a Render Blueprint. The blueprint expects you to provide `DATABASE_URL` from an external PostgreSQL database.
 
 1. Push the project to GitHub.
 2. Create a new Render Blueprint from the repository.
@@ -232,7 +233,7 @@ This project includes `render.yaml`, so it can be deployed as a Render Blueprint
 4. Deploy the service.
 5. Add the Render callback URL to Google Cloud Console.
 
-Render will provide `DATABASE_URL` automatically if the PostgreSQL database in `render.yaml` is created.
+Set `DATABASE_URL` in Render to your external PostgreSQL connection string, for example from Neon or Supabase. Keep this value only in Render environment variables, never in `app.js`.
 
 ## Notes
 

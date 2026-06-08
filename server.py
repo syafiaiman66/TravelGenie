@@ -108,6 +108,26 @@ def init_db():
         )
 
 
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS itineraries (
+                id TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                trip_name TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                budget REAL NOT NULL,
+                days INTEGER NOT NULL,
+                travelers INTEGER NOT NULL,
+                itinerary_json TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_itineraries_user_id ON itineraries (user_id)")
+
 def now():
     return int(time.time())
 
@@ -282,6 +302,9 @@ class BounceHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/session":
             self.handle_session()
             return
+        if parsed.path == "/api/itineraries":
+            self.handle_list_itineraries()
+            return
         if parsed.path == "/auth/google":
             self.handle_google_start()
             return
@@ -295,11 +318,28 @@ class BounceHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/itinerary":
             self.handle_generate_itinerary()
             return
+        if parsed.path == "/api/itineraries":
+            self.handle_save_itinerary()
+            return
         if parsed.path == "/api/feedback":
             self.handle_feedback()
             return
         if parsed.path == "/auth/logout":
             self.handle_logout()
+            return
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def do_PUT(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path.startswith("/api/itineraries/"):
+            self.handle_update_itinerary(parsed)
+            return
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def do_DELETE(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path.startswith("/api/itineraries/"):
+            self.handle_delete_itinerary(parsed)
             return
         self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -494,6 +534,242 @@ class BounceHandler(SimpleHTTPRequestHandler):
             return
 
         self.send_json({"itinerary": itinerary})
+
+    def parse_itinerary_id(self, parsed):
+        parts = parsed.path.strip("/").split("/")
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "itineraries" and parts[2]:
+            return urllib.parse.unquote(parts[2])
+        return ""
+
+    def itinerary_row_to_trip(self, row):
+        data = dict(row)
+        try:
+            trip = json.loads(data["itinerary_json"])
+            if not isinstance(trip, dict):
+                trip = {}
+        except (TypeError, json.JSONDecodeError):
+            trip = {}
+
+        trip["id"] = data["id"]
+        trip["name"] = trip.get("name") or data["trip_name"]
+        trip["destination"] = trip.get("destination") or data["destination"]
+        trip["currency"] = trip.get("currency") or data["currency"]
+        trip["budget"] = trip.get("budget") or data["budget"]
+        trip["days"] = trip.get("days") or data["days"]
+        trip["travelers"] = trip.get("travelers") or data["travelers"]
+        trip["createdAt"] = trip.get("createdAt") or data["created_at"]
+        trip["updatedAt"] = data["updated_at"]
+        return trip
+
+    def normalize_itinerary_payload(self, payload, forced_id=None):
+        if not isinstance(payload, dict):
+            raise ValueError("invalid_itinerary")
+
+        trip = dict(payload)
+        trip_id = str(forced_id or trip.get("id") or secrets.token_urlsafe(18)).strip()
+        name = str(trip.get("name") or trip.get("tripName") or "Untitled Trip").strip()[:180]
+        destination = str(trip.get("destination") or "").strip()[:180]
+        currency = str(trip.get("currency") or "").strip()[:12]
+
+        try:
+            budget = float(trip.get("budget") or 0)
+            days = int(trip.get("days") or 0)
+            travelers = int(trip.get("travelers") or 0)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid_itinerary") from exc
+
+        if not trip_id or len(trip_id) > 120 or not destination or not currency or days <= 0 or travelers <= 0:
+            raise ValueError("invalid_itinerary")
+        if not isinstance(trip.get("schedule"), list):
+            raise ValueError("invalid_itinerary")
+
+        trip.update(
+            {
+                "id": trip_id,
+                "name": name,
+                "destination": destination,
+                "currency": currency,
+                "budget": budget,
+                "days": days,
+                "travelers": travelers,
+            }
+        )
+
+        return {
+            "id": trip_id,
+            "trip_name": name,
+            "destination": destination,
+            "currency": currency,
+            "budget": budget,
+            "days": days,
+            "travelers": travelers,
+            "trip": trip,
+        }
+
+    def save_itinerary_payload(self, payload, user_id, forced_id=None, require_existing=False):
+        record = self.normalize_itinerary_payload(payload, forced_id)
+        timestamp = now()
+
+        with connect_db() as conn:
+            existing = conn.execute(
+                f"SELECT user_id, created_at FROM itineraries WHERE id = {SQL_PARAM}",
+                (record["id"],),
+            ).fetchone()
+
+            if require_existing and not existing:
+                raise LookupError("itinerary_not_found")
+            if existing and existing["user_id"] != user_id:
+                raise PermissionError("forbidden")
+
+            created_at = existing["created_at"] if existing else timestamp
+            trip = record["trip"]
+            trip["createdAt"] = trip.get("createdAt") or created_at
+            trip["updatedAt"] = timestamp
+            itinerary_json = json.dumps(trip, ensure_ascii=False, separators=(",", ":"))
+
+            if existing:
+                conn.execute(
+                    f"""
+                    UPDATE itineraries
+                    SET trip_name = {SQL_PARAM}, destination = {SQL_PARAM}, currency = {SQL_PARAM},
+                        budget = {SQL_PARAM}, days = {SQL_PARAM}, travelers = {SQL_PARAM},
+                        itinerary_json = {SQL_PARAM}, updated_at = {SQL_PARAM}
+                    WHERE id = {SQL_PARAM} AND user_id = {SQL_PARAM}
+                    """,
+                    (
+                        record["trip_name"],
+                        record["destination"],
+                        record["currency"],
+                        record["budget"],
+                        record["days"],
+                        record["travelers"],
+                        itinerary_json,
+                        timestamp,
+                        record["id"],
+                        user_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    f"""
+                    INSERT INTO itineraries
+                    (id, user_id, trip_name, destination, currency, budget, days, travelers, itinerary_json, created_at, updated_at)
+                    VALUES ({SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM})
+                    """,
+                    (
+                        record["id"],
+                        user_id,
+                        record["trip_name"],
+                        record["destination"],
+                        record["currency"],
+                        record["budget"],
+                        record["days"],
+                        record["travelers"],
+                        itinerary_json,
+                        created_at,
+                        timestamp,
+                    ),
+                )
+
+        return trip
+
+    def handle_list_itineraries(self):
+        user = self.get_session_user()
+        if not user:
+            self.send_json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            return
+
+        with connect_db() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT id, trip_name, destination, currency, budget, days, travelers, itinerary_json, created_at, updated_at
+                FROM itineraries
+                WHERE user_id = {SQL_PARAM}
+                ORDER BY updated_at DESC, created_at DESC
+                """,
+                (user["id"],),
+            ).fetchall()
+
+        self.send_json({"trips": [self.itinerary_row_to_trip(row) for row in rows]})
+
+    def handle_save_itinerary(self):
+        user = self.get_session_user()
+        if not user:
+            self.send_json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            return
+
+        try:
+            payload = self.read_json_body()
+            trip = self.save_itinerary_payload(payload, user["id"])
+        except json.JSONDecodeError:
+            self.send_json({"error": "invalid_json"}, HTTPStatus.BAD_REQUEST)
+            return
+        except ValueError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.FORBIDDEN)
+            return
+
+        self.send_json({"trip": trip})
+
+    def handle_update_itinerary(self, parsed):
+        trip_id = self.parse_itinerary_id(parsed)
+        if not trip_id:
+            self.send_json({"error": "itinerary_not_found"}, HTTPStatus.NOT_FOUND)
+            return
+
+        user = self.get_session_user()
+        if not user:
+            self.send_json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            return
+
+        try:
+            payload = self.read_json_body()
+            trip = self.save_itinerary_payload(payload, user["id"], forced_id=trip_id, require_existing=True)
+        except json.JSONDecodeError:
+            self.send_json({"error": "invalid_json"}, HTTPStatus.BAD_REQUEST)
+            return
+        except ValueError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+        except LookupError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.FORBIDDEN)
+            return
+
+        self.send_json({"trip": trip})
+
+    def handle_delete_itinerary(self, parsed):
+        trip_id = self.parse_itinerary_id(parsed)
+        if not trip_id:
+            self.send_json({"error": "itinerary_not_found"}, HTTPStatus.NOT_FOUND)
+            return
+
+        user = self.get_session_user()
+        if not user:
+            self.send_json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            return
+
+        with connect_db() as conn:
+            existing = conn.execute(
+                f"SELECT user_id FROM itineraries WHERE id = {SQL_PARAM}",
+                (trip_id,),
+            ).fetchone()
+            if not existing:
+                self.send_json({"error": "itinerary_not_found"}, HTTPStatus.NOT_FOUND)
+                return
+            if existing["user_id"] != user["id"]:
+                self.send_json({"error": "forbidden"}, HTTPStatus.FORBIDDEN)
+                return
+            conn.execute(
+                f"DELETE FROM itineraries WHERE id = {SQL_PARAM} AND user_id = {SQL_PARAM}",
+                (trip_id, user["id"]),
+            )
+
+        self.send_json({"ok": True})
 
     def handle_feedback(self):
         user = self.get_session_user()

@@ -10,7 +10,8 @@ const state = {
   currentTrip: null,
   listMode: "saved",
   isLoggedIn: false,
-  user: null
+  user: null,
+  savedTrips: []
 };
 
 const destinationInput = document.querySelector("#destination");
@@ -457,6 +458,7 @@ function renderDay(day) {
 }
 
 function getStoredTrips(key) {
+  if (key === storageKeys.saved) return state.savedTrips;
   try {
     return JSON.parse(localStorage.getItem(key)) || [];
   } catch {
@@ -465,7 +467,52 @@ function getStoredTrips(key) {
 }
 
 function setStoredTrips(key, trips) {
+  if (key === storageKeys.saved) {
+    state.savedTrips = trips;
+    return;
+  }
   localStorage.setItem(key, JSON.stringify(trips));
+}
+
+async function fetchJson(url, options = {}) {
+  const headers = options.body
+    ? { "Content-Type": "application/json", ...(options.headers || {}) }
+    : options.headers;
+  const response = await fetch(url, {
+    credentials: "same-origin",
+    ...options,
+    headers
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const messages = {
+      unauthorized: "Please log in before using saved itineraries.",
+      invalid_json: "The server could not read the request.",
+      invalid_itinerary: "This itinerary could not be saved. Please generate it again.",
+      itinerary_not_found: "That saved itinerary could not be found.",
+      forbidden: "You can only update your own saved itineraries."
+    };
+    throw new Error(messages[payload.error] || payload.error || "The database request failed.");
+  }
+  return payload;
+}
+
+async function loadSavedTrips() {
+  if (!state.isLoggedIn) {
+    setStoredTrips(storageKeys.saved, []);
+    updateCounts();
+    renderTripList();
+    return;
+  }
+
+  try {
+    const payload = await fetchJson("/api/itineraries");
+    setStoredTrips(storageKeys.saved, payload.trips || []);
+    updateCounts();
+    renderTripList();
+  } catch (error) {
+    showToast(error.message || "Could not load saved itineraries from the database.");
+  }
 }
 
 function saveRecentTrip(trip) {
@@ -473,27 +520,72 @@ function saveRecentTrip(trip) {
   setStoredTrips(storageKeys.recent, [trip, ...recent].slice(0, 6));
 }
 
-function saveTrip(trip) {
-  const saved = getStoredTrips(storageKeys.saved).filter((item) => item.id !== trip.id);
-  setStoredTrips(storageKeys.saved, [trip, ...saved]);
-  updateCounts();
-  renderTripList();
-  showToast("Itinerary saved.");
-}
-
-function renameTrip(trip) {
-  const name = prompt("Rename itinerary", trip.name);
-  if (!name) return;
-  const renamed = { ...trip, name };
-  state.currentTrip = renamed;
-  saveRecentTrip(renamed);
+function replaceTripEverywhere(updatedTrip) {
+  if (state.currentTrip?.id === updatedTrip.id) {
+    state.currentTrip = updatedTrip;
+  }
   ["saved", "recent"].forEach((type) => {
     const key = storageKeys[type];
-    const trips = getStoredTrips(key).map((item) => (item.id === trip.id ? renamed : item));
+    const trips = getStoredTrips(key).map((item) => (item.id === updatedTrip.id ? updatedTrip : item));
     setStoredTrips(key, trips);
   });
+}
+
+async function saveTrip(trip, successMessage = "Itinerary saved to your account.") {
+  if (!state.isLoggedIn) {
+    openAuth("login");
+    return null;
+  }
+
+  try {
+    const payload = await fetchJson("/api/itineraries", {
+      method: "POST",
+      body: JSON.stringify(trip)
+    });
+    const savedTrip = payload.trip || trip;
+    const saved = getStoredTrips(storageKeys.saved).filter((item) => item.id !== savedTrip.id);
+    setStoredTrips(storageKeys.saved, [savedTrip, ...saved]);
+    replaceTripEverywhere(savedTrip);
+    updateCounts();
+    renderTripList();
+    showToast(successMessage);
+    return savedTrip;
+  } catch (error) {
+    showToast(error.message || "Itinerary could not be saved.");
+    return null;
+  }
+}
+
+async function renameTrip(trip) {
+  const name = prompt("Rename itinerary", trip.name);
+  if (!name) return;
+
+  const renamed = { ...trip, name, updatedAt: new Date().toISOString() };
+  const isSaved = getStoredTrips(storageKeys.saved).some((item) => item.id === trip.id);
+
+  if (isSaved) {
+    try {
+      const payload = await fetchJson(`/api/itineraries/${encodeURIComponent(trip.id)}`, {
+        method: "PUT",
+        body: JSON.stringify(renamed)
+      });
+      const savedTrip = payload.trip || renamed;
+      replaceTripEverywhere(savedTrip);
+      renderResult(savedTrip);
+      renderTripList();
+      updateCounts();
+      showToast("Itinerary renamed.");
+    } catch (error) {
+      showToast(error.message || "Itinerary could not be renamed.");
+    }
+    return;
+  }
+
+  replaceTripEverywhere(renamed);
+  saveRecentTrip(renamed);
   renderResult(renamed);
   renderTripList();
+  showToast("Itinerary renamed.");
 }
 
 function editTrip(trip) {
@@ -526,14 +618,25 @@ function duplicateTrip(trip) {
   saveTrip(copy);
 }
 
-function deleteTrip(tripId) {
+async function deleteTrip(tripId) {
   const key = storageKeys[state.listMode];
+
+  if (state.listMode === "saved") {
+    try {
+      await fetchJson(`/api/itineraries/${encodeURIComponent(tripId)}`, { method: "DELETE" });
+    } catch (error) {
+      showToast(error.message || "Itinerary could not be deleted.");
+      return;
+    }
+  }
+
   setStoredTrips(
     key,
     getStoredTrips(key).filter((trip) => trip.id !== tripId)
   );
   updateCounts();
   renderTripList();
+  showToast("Itinerary deleted.");
 }
 
 function updateCounts() {
@@ -612,14 +715,26 @@ async function refreshSession(showSuccess = false) {
     const session = await response.json();
     state.isLoggedIn = Boolean(session.authenticated);
     state.user = session.user || null;
+    if (!state.isLoggedIn) {
+      state.savedTrips = [];
+    }
     applyAuthState();
+    if (state.isLoggedIn) {
+      await loadSavedTrips();
+    } else {
+      updateCounts();
+      renderTripList();
+    }
     if (state.isLoggedIn && showSuccess) {
       showToast(`Welcome, ${state.user.fullName}. Google authentication completed.`);
     }
   } catch {
     state.isLoggedIn = false;
     state.user = null;
+    state.savedTrips = [];
     applyAuthState();
+    updateCounts();
+    renderTripList();
     showToast("Could not verify your session. Please try signing in again.");
   }
 }
@@ -635,7 +750,10 @@ async function logoutUser() {
   }
   state.isLoggedIn = false;
   state.user = null;
+  state.savedTrips = [];
   applyAuthState();
+  updateCounts();
+  renderTripList();
   showToast("Logged out. Planner and saved trips are hidden.");
   document.querySelector("#home").scrollIntoView({ behavior: "smooth" });
 }
