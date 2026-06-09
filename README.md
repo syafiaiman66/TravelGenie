@@ -213,6 +213,7 @@ If you use Gmail, `SMTP_PASSWORD` should be a Gmail app password, not your norma
 | `GEMINI_API_KEY` | AI API key used by the itinerary generator |
 | `GEMINI_MODEL` | AI model name used by the itinerary generator |
 | `DATABASE_URL` | PostgreSQL connection string used on Render |
+| `DATA_ENCRYPTION_SECRET` | Long secret used to protect stored email, destination, and trip-name values |
 | `FEEDBACK_TO` | Email address that receives feedback |
 | `SMTP_HOST` | SMTP server host |
 | `SMTP_PORT` | SMTP server port |

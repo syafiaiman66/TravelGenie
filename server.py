@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -24,6 +25,7 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+DATA_ENCRYPTION_SECRET = os.environ.get("DATA_ENCRYPTION_SECRET", "")
 
 
 def load_env_file():
@@ -79,6 +81,27 @@ def connect_db():
     return conn
 
 
+def get_table_columns(conn, table):
+    if USE_POSTGRES:
+        rows = conn.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = current_schema() AND table_name = %s
+            """,
+            (table,),
+        ).fetchall()
+        return {row["column_name"] for row in rows}
+
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return {row["name"] for row in rows}
+
+
+def ensure_column(conn, table, column, definition):
+    if column not in get_table_columns(conn, table):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def init_db():
     user_id_column = "SERIAL PRIMARY KEY" if USE_POSTGRES else "INTEGER PRIMARY KEY AUTOINCREMENT"
     with connect_db() as conn:
@@ -88,13 +111,23 @@ def init_db():
                 id {user_id_column},
                 google_user_id TEXT UNIQUE,
                 full_name TEXT NOT NULL,
-                email TEXT NOT NULL UNIQUE,
+                email_encrypted TEXT,
                 profile_picture TEXT,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             )
             """
         )
+        ensure_column(conn, "users", "google_user_id", "TEXT")
+        ensure_column(conn, "users", "full_name", "TEXT")
+        ensure_column(conn, "users", "email_encrypted", "TEXT")
+        ensure_column(conn, "users", "profile_picture", "TEXT")
+        ensure_column(conn, "users", "created_at", "INTEGER")
+        ensure_column(conn, "users", "updated_at", "INTEGER")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_user_id ON users (google_user_id) WHERE google_user_id IS NOT NULL"
+        )
+
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS sessions (
@@ -107,14 +140,13 @@ def init_db():
             """
         )
 
-
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS itineraries (
                 id TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL,
-                trip_name TEXT NOT NULL,
-                destination TEXT NOT NULL,
+                tripname_encrypted TEXT NOT NULL,
+                destination_encrypted TEXT NOT NULL,
                 currency TEXT NOT NULL,
                 budget REAL NOT NULL,
                 days INTEGER NOT NULL,
@@ -126,8 +158,16 @@ def init_db():
             )
             """
         )
+        ensure_column(conn, "itineraries", "tripname_encrypted", "TEXT")
+        ensure_column(conn, "itineraries", "destination_encrypted", "TEXT")
+        ensure_column(conn, "itineraries", "currency", "TEXT")
+        ensure_column(conn, "itineraries", "budget", "REAL")
+        ensure_column(conn, "itineraries", "days", "INTEGER")
+        ensure_column(conn, "itineraries", "travelers", "INTEGER")
+        ensure_column(conn, "itineraries", "itinerary_json", "TEXT")
+        ensure_column(conn, "itineraries", "created_at", "INTEGER")
+        ensure_column(conn, "itineraries", "updated_at", "INTEGER")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_itineraries_user_id ON itineraries (user_id)")
-
 def now():
     return int(time.time())
 
@@ -147,6 +187,18 @@ def token_hash(token):
 
 def json_bytes(payload):
     return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+def protect_value(value, normalize=False):
+    text = str(value or "").strip()
+    if normalize:
+        text = text.lower()
+    if not text:
+        return ""
+
+    secret = DATA_ENCRYPTION_SECRET.strip()
+    if secret:
+        return hmac.new(secret.encode("utf-8"), text.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 class GeminiGenerationError(Exception):
@@ -393,9 +445,15 @@ class BounceHandler(SimpleHTTPRequestHandler):
 
         hashed = token_hash(token)
         with connect_db() as conn:
+            columns = get_table_columns(conn, "users")
+            email_select = "users.email" if "email" in columns else "NULL"
+            encrypted_select = "users.email_encrypted" if "email_encrypted" in columns else "NULL"
             row = conn.execute(
                 f"""
-                SELECT users.id, users.google_user_id, users.full_name, users.email, users.profile_picture
+                SELECT users.id, users.google_user_id, users.full_name,
+                       {email_select} AS email,
+                       {encrypted_select} AS email_encrypted,
+                       users.profile_picture
                 FROM sessions
                 JOIN users ON users.id = sessions.user_id
                 WHERE sessions.token_hash = {SQL_PARAM} AND sessions.expires_at > {SQL_PARAM}
@@ -419,7 +477,7 @@ class BounceHandler(SimpleHTTPRequestHandler):
                     "id": user["id"],
                     "googleUserId": user["google_user_id"],
                     "fullName": user["full_name"],
-                    "email": user["email"],
+                    "email": user.get("email") or "",
                     "profilePicture": user["profile_picture"],
                 },
             }
@@ -551,15 +609,35 @@ class BounceHandler(SimpleHTTPRequestHandler):
             trip = {}
 
         trip["id"] = data["id"]
-        trip["name"] = trip.get("name") or data["trip_name"]
-        trip["destination"] = trip.get("destination") or data["destination"]
-        trip["currency"] = trip.get("currency") or data["currency"]
-        trip["budget"] = trip.get("budget") or data["budget"]
-        trip["days"] = trip.get("days") or data["days"]
-        trip["travelers"] = trip.get("travelers") or data["travelers"]
-        trip["createdAt"] = trip.get("createdAt") or data["created_at"]
-        trip["updatedAt"] = data["updated_at"]
+        trip["name"] = trip.get("name") or data.get("trip_name") or "Saved Trip"
+        trip["destination"] = trip.get("destination") or data.get("destination") or "Saved Destination"
+        trip["currency"] = trip.get("currency") or data.get("currency") or "USD"
+        trip["budget"] = trip.get("budget") or data.get("budget") or 0
+        trip["days"] = trip.get("days") or data.get("days") or 1
+        trip["travelers"] = trip.get("travelers") or data.get("travelers") or 1
+        trip["createdAt"] = trip.get("createdAt") or data.get("created_at")
+        trip["updatedAt"] = data.get("updated_at")
         return trip
+
+    def itinerary_text_fields(self, columns, trip_name, destination):
+        has_encrypted_name = "tripname_encrypted" in columns or "trip_name_encrypted" in columns
+        has_encrypted_destination = "destination_encrypted" in columns
+        protected_name = protect_value(trip_name)
+        protected_destination = protect_value(destination)
+        fields = {}
+
+        if "tripname_encrypted" in columns:
+            fields["tripname_encrypted"] = protected_name
+        if "trip_name_encrypted" in columns:
+            fields["trip_name_encrypted"] = protected_name
+        if "destination_encrypted" in columns:
+            fields["destination_encrypted"] = protected_destination
+        if "trip_name" in columns:
+            fields["trip_name"] = protected_name if has_encrypted_name else trip_name
+        if "destination" in columns:
+            fields["destination"] = protected_destination if has_encrypted_destination else destination
+
+        return fields
 
     def normalize_itinerary_payload(self, payload, forced_id=None):
         if not isinstance(payload, dict):
@@ -611,6 +689,7 @@ class BounceHandler(SimpleHTTPRequestHandler):
         timestamp = now()
 
         with connect_db() as conn:
+            columns = get_table_columns(conn, "itineraries")
             existing = conn.execute(
                 f"SELECT user_id, created_at FROM itineraries WHERE id = {SQL_PARAM}",
                 (record["id"],),
@@ -626,49 +705,37 @@ class BounceHandler(SimpleHTTPRequestHandler):
             trip["createdAt"] = trip.get("createdAt") or created_at
             trip["updatedAt"] = timestamp
             itinerary_json = json.dumps(trip, ensure_ascii=False, separators=(",", ":"))
+            text_fields = self.itinerary_text_fields(columns, record["trip_name"], record["destination"])
+
+            base_fields = {
+                "user_id": user_id,
+                "currency": record["currency"],
+                "budget": record["budget"],
+                "days": record["days"],
+                "travelers": record["travelers"],
+                "itinerary_json": itinerary_json,
+                "updated_at": timestamp,
+                **text_fields,
+            }
 
             if existing:
+                update_fields = {key: value for key, value in base_fields.items() if key != "user_id" and key in columns}
+                assignments = ", ".join(f"{key} = {SQL_PARAM}" for key in update_fields)
                 conn.execute(
-                    f"""
-                    UPDATE itineraries
-                    SET trip_name = {SQL_PARAM}, destination = {SQL_PARAM}, currency = {SQL_PARAM},
-                        budget = {SQL_PARAM}, days = {SQL_PARAM}, travelers = {SQL_PARAM},
-                        itinerary_json = {SQL_PARAM}, updated_at = {SQL_PARAM}
-                    WHERE id = {SQL_PARAM} AND user_id = {SQL_PARAM}
-                    """,
-                    (
-                        record["trip_name"],
-                        record["destination"],
-                        record["currency"],
-                        record["budget"],
-                        record["days"],
-                        record["travelers"],
-                        itinerary_json,
-                        timestamp,
-                        record["id"],
-                        user_id,
-                    ),
+                    f"UPDATE itineraries SET {assignments} WHERE id = {SQL_PARAM} AND user_id = {SQL_PARAM}",
+                    (*update_fields.values(), record["id"], user_id),
                 )
             else:
+                insert_fields = {
+                    "id": record["id"],
+                    **{key: value for key, value in base_fields.items() if key in columns or key == "user_id"},
+                    "created_at": created_at,
+                }
+                field_names = list(insert_fields.keys())
+                placeholders = ", ".join([SQL_PARAM] * len(field_names))
                 conn.execute(
-                    f"""
-                    INSERT INTO itineraries
-                    (id, user_id, trip_name, destination, currency, budget, days, travelers, itinerary_json, created_at, updated_at)
-                    VALUES ({SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM}, {SQL_PARAM})
-                    """,
-                    (
-                        record["id"],
-                        user_id,
-                        record["trip_name"],
-                        record["destination"],
-                        record["currency"],
-                        record["budget"],
-                        record["days"],
-                        record["travelers"],
-                        itinerary_json,
-                        created_at,
-                        timestamp,
-                    ),
+                    f"INSERT INTO itineraries ({', '.join(field_names)}) VALUES ({placeholders})",
+                    tuple(insert_fields.values()),
                 )
 
         return trip
@@ -682,7 +749,7 @@ class BounceHandler(SimpleHTTPRequestHandler):
         with connect_db() as conn:
             rows = conn.execute(
                 f"""
-                SELECT id, trip_name, destination, currency, budget, days, travelers, itinerary_json, created_at, updated_at
+                SELECT *
                 FROM itineraries
                 WHERE user_id = {SQL_PARAM}
                 ORDER BY updated_at DESC, created_at DESC
@@ -770,7 +837,6 @@ class BounceHandler(SimpleHTTPRequestHandler):
             )
 
         self.send_json({"ok": True})
-
     def handle_feedback(self):
         user = self.get_session_user()
         if not user:
@@ -1053,60 +1119,66 @@ FINAL_SELF_CHECK:
 
     def upsert_user(self, userinfo):
         timestamp = now()
+        email = userinfo["email"].strip().lower()
+        full_name = userinfo.get("name") or email
+        email_protected = protect_value(email, normalize=True)
+
         with connect_db() as conn:
-            existing = conn.execute(
-                f"SELECT id FROM users WHERE email = {SQL_PARAM} OR google_user_id = {SQL_PARAM}",
-                (userinfo["email"], userinfo["sub"]),
-            ).fetchone()
+            columns = get_table_columns(conn, "users")
+            if "email" in columns:
+                existing = conn.execute(
+                    f"SELECT id FROM users WHERE google_user_id = {SQL_PARAM} OR email = {SQL_PARAM}",
+                    (userinfo["sub"], email),
+                ).fetchone()
+            else:
+                existing = conn.execute(
+                    f"SELECT id FROM users WHERE google_user_id = {SQL_PARAM}",
+                    (userinfo["sub"],),
+                ).fetchone()
+
             if existing:
+                updates = {
+                    "google_user_id": userinfo["sub"],
+                    "full_name": full_name,
+                    "profile_picture": userinfo.get("picture"),
+                    "updated_at": timestamp,
+                }
+                if "email_encrypted" in columns:
+                    updates["email_encrypted"] = email_protected
+                if "email" in columns:
+                    updates["email"] = email
+
+                assignments = ", ".join(f"{key} = {SQL_PARAM}" for key in updates)
                 conn.execute(
-                    f"""
-                    UPDATE users
-                    SET google_user_id = {SQL_PARAM}, full_name = {SQL_PARAM}, email = {SQL_PARAM}, profile_picture = {SQL_PARAM}, updated_at = {SQL_PARAM}
-                    WHERE id = {SQL_PARAM}
-                    """,
-                    (
-                        userinfo["sub"],
-                        userinfo.get("name") or userinfo["email"],
-                        userinfo["email"],
-                        userinfo.get("picture"),
-                        timestamp,
-                        existing["id"],
-                    ),
+                    f"UPDATE users SET {assignments} WHERE id = {SQL_PARAM}",
+                    (*updates.values(), existing["id"]),
                 )
                 return existing["id"]
 
+            insert_fields = {
+                "google_user_id": userinfo["sub"],
+                "full_name": full_name,
+                "profile_picture": userinfo.get("picture"),
+                "created_at": timestamp,
+                "updated_at": timestamp,
+            }
+            if "email_encrypted" in columns:
+                insert_fields["email_encrypted"] = email_protected
+            if "email" in columns:
+                insert_fields["email"] = email
+
+            field_names = list(insert_fields.keys())
+            placeholders = ", ".join([SQL_PARAM] * len(field_names))
             if USE_POSTGRES:
                 row = conn.execute(
-                    """
-                    INSERT INTO users (google_user_id, full_name, email, profile_picture, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                    """,
-                    (
-                        userinfo["sub"],
-                        userinfo.get("name") or userinfo["email"],
-                        userinfo["email"],
-                        userinfo.get("picture"),
-                        timestamp,
-                        timestamp,
-                    ),
+                    f"INSERT INTO users ({', '.join(field_names)}) VALUES ({placeholders}) RETURNING id",
+                    tuple(insert_fields.values()),
                 ).fetchone()
                 return row["id"]
 
             cursor = conn.execute(
-                """
-                INSERT INTO users (google_user_id, full_name, email, profile_picture, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    userinfo["sub"],
-                    userinfo.get("name") or userinfo["email"],
-                    userinfo["email"],
-                    userinfo.get("picture"),
-                    timestamp,
-                    timestamp,
-                ),
+                f"INSERT INTO users ({', '.join(field_names)}) VALUES ({placeholders})",
+                tuple(insert_fields.values()),
             )
             return cursor.lastrowid
 
