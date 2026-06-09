@@ -25,7 +25,7 @@ WHERE google_user_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS itineraries (
     id TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id),
-    tripname_encrypted TEXT,
+    trip_name_encrypted TEXT,
     destination_encrypted TEXT,
     currency TEXT,
     budget REAL,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS itineraries (
     updated_at INTEGER
 );
 
-ALTER TABLE itineraries ADD COLUMN IF NOT EXISTS tripname_encrypted TEXT;
+ALTER TABLE itineraries ADD COLUMN IF NOT EXISTS trip_name_encrypted TEXT;
 ALTER TABLE itineraries ADD COLUMN IF NOT EXISTS destination_encrypted TEXT;
 ALTER TABLE itineraries ADD COLUMN IF NOT EXISTS currency TEXT;
 ALTER TABLE itineraries ADD COLUMN IF NOT EXISTS budget REAL;

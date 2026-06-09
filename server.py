@@ -145,7 +145,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS itineraries (
                 id TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL,
-                tripname_encrypted TEXT NOT NULL,
+                trip_name_encrypted TEXT NOT NULL,
                 destination_encrypted TEXT NOT NULL,
                 currency TEXT NOT NULL,
                 budget REAL NOT NULL,
@@ -158,7 +158,7 @@ def init_db():
             )
             """
         )
-        ensure_column(conn, "itineraries", "tripname_encrypted", "TEXT")
+        ensure_column(conn, "itineraries", "trip_name_encrypted", "TEXT")
         ensure_column(conn, "itineraries", "destination_encrypted", "TEXT")
         ensure_column(conn, "itineraries", "currency", "TEXT")
         ensure_column(conn, "itineraries", "budget", "REAL")
@@ -620,14 +620,12 @@ class BounceHandler(SimpleHTTPRequestHandler):
         return trip
 
     def itinerary_text_fields(self, columns, trip_name, destination):
-        has_encrypted_name = "tripname_encrypted" in columns or "trip_name_encrypted" in columns
+        has_encrypted_name = "trip_name_encrypted" in columns
         has_encrypted_destination = "destination_encrypted" in columns
         protected_name = protect_value(trip_name)
         protected_destination = protect_value(destination)
         fields = {}
 
-        if "tripname_encrypted" in columns:
-            fields["tripname_encrypted"] = protected_name
         if "trip_name_encrypted" in columns:
             fields["trip_name_encrypted"] = protected_name
         if "destination_encrypted" in columns:
